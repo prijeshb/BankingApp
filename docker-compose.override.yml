@@ -1,0 +1,11 @@
+# Local development overrides — not committed with secrets
+services:
+  api:
+    build:
+      target: runtime
+    environment:
+      DEBUG: "true"
+    volumes:
+      - .:/app          # live reload via bind mount
+      - db_data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

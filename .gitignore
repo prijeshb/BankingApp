@@ -1,0 +1,29 @@
+# Claude prompt system
+*.prompt.md
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+
+# Database
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vscode/settings.json
+.idea/

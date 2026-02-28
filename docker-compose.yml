@@ -1,0 +1,23 @@
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    image: banking-service:latest
+    container_name: banking_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - db_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  db_data:
