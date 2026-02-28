@@ -9,14 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.database import Base, get_db
 from app.main import app
 
-# ── In-memory SQLite for tests ────────────────────────────────────────────────
+# ── Isolated in-memory SQLite for tests ───────────────────────────────────────
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-test_engine = create_async_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
-TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+test_engine = create_async_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+)
+TestSessionLocal = async_sessionmaker(
+    test_engine, class_=AsyncSession, expire_on_commit=False
+)
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest.fixture(scope="session")
 def event_loop():
     loop = asyncio.new_event_loop()
     yield loop
@@ -32,17 +37,31 @@ async def setup_database():
         await conn.run_sync(Base.metadata.drop_all)
 
 
-@pytest_asyncio.fixture
-async def db() -> AsyncGenerator[AsyncSession, None]:
-    async with TestSessionLocal() as session:
-        yield session
-        await session.rollback()
+@pytest_asyncio.fixture(autouse=True)
+async def clean_tables():
+    """Wipe all rows before every test so each test starts with a clean slate."""
+    async with test_engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
+    yield
 
 
 @pytest_asyncio.fixture
-async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    async def _override_get_db():
-        yield db
+async def client() -> AsyncGenerator[AsyncClient, None]:
+    """
+    AsyncClient with get_db overridden to use the test engine.
+    Each request gets its own session (committed on success, rolled back on error),
+    matching production behaviour exactly.
+    """
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        async with TestSessionLocal() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
 
     app.dependency_overrides[get_db] = _override_get_db
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -50,35 +69,45 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
-# ── Reusable auth helpers ─────────────────────────────────────────────────────
+# ── Reusable helpers ──────────────────────────────────────────────────────────
 
-@pytest_asyncio.fixture
-async def registered_user(client: AsyncClient) -> dict:
-    resp = await client.post(
-        "/api/v1/auth/register",
-        json={"email": "test@example.com", "password": "SecurePass1!", "full_name": "Test User"},
-    )
-    assert resp.status_code == 201
-    return resp.json()
+VALID_USER = {
+    "email": "alice@example.com",
+    "password": "SecurePass1!",
+    "full_name": "Alice Example",
+}
+
+SECOND_USER = {
+    "email": "bob@example.com",
+    "password": "SecurePass2!",
+    "full_name": "Bob Example",
+}
 
 
-@pytest_asyncio.fixture
-async def auth_headers(client: AsyncClient, registered_user: dict) -> dict:
-    resp = await client.post(
+async def register_and_login(client: AsyncClient, user: dict = VALID_USER) -> dict:
+    """Register a user and return {access_token, refresh_token, user_id}."""
+    reg = await client.post("/api/v1/auth/register", json=user)
+    assert reg.status_code == 201, reg.text
+    login = await client.post(
         "/api/v1/auth/login",
-        json={"email": "test@example.com", "password": "SecurePass1!"},
+        json={"email": user["email"], "password": user["password"]},
     )
-    assert resp.status_code == 200
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    assert login.status_code == 200, login.text
+    return {**login.json(), "user_id": reg.json()["user_id"]}
 
 
-@pytest_asyncio.fixture
-async def checking_account(client: AsyncClient, auth_headers: dict) -> dict:
+async def auth_headers(client: AsyncClient, user: dict = VALID_USER) -> dict:
+    tokens = await register_and_login(client, user)
+    return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+async def create_account(
+    client: AsyncClient, headers: dict, account_type: str = "CHECKING"
+) -> dict:
     resp = await client.post(
         "/api/v1/accounts/",
-        json={"account_type": "CHECKING", "currency": "USD"},
-        headers=auth_headers,
+        json={"account_type": account_type, "currency": "USD"},
+        headers=headers,
     )
-    assert resp.status_code == 201
+    assert resp.status_code == 201, resp.text
     return resp.json()

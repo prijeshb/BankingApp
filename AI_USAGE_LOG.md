@@ -104,6 +104,52 @@ Checked the plan against the banking anti-pattern checklist from `PROMPTS.md`:
 | Append-only audit log design | AI flagged the need for this in Phase 1 before any code was written |
 | Multi-stage Dockerfile | Generated builder + runtime stages with non-root user unprompted |
 
+---
+
+## Session 3 — Phase 3: Tests
+
+### Prompt Used
+> Write Tests prompt from `PROMPTS.md`, applied to the full scaffold.
+> Framework: pytest + pytest-asyncio + httpx
+
+### What AI produced
+
+#### Test infrastructure
+- Rewrote `tests/conftest.py` — `clean_tables` autouse fixture wipes all rows before each test; `client` fixture gives each request its own committed session matching production behaviour exactly
+
+#### Integration tests (7 files, ~90 test cases)
+| File | Coverage |
+|---|---|
+| `test_health.py` | All 3 endpoints, no-auth requirement |
+| `test_auth.py` | Register (happy, duplicate email, weak password, invalid email), login (happy, wrong password, non-existent), refresh (happy, invalid token), logout (revokes token) |
+| `test_accounts.py` | Create (CHECKING, SAVINGS, invalid type/currency), list (empty, own-only), get (found, not found, other user 403), delete (soft, other user 403) |
+| `test_transactions.py` | List (empty, after transfer, pagination), get (found, not found), ownership 403 |
+| `test_transfers.py` | Happy path, balance debit/credit consistency, transaction records created, insufficient funds, zero/negative amount, same account, duplicate idempotency key, cross-user ownership 403, non-existent account 404 |
+| `test_cards.py` | Issue (DEBIT, VIRTUAL), list, get, block/unblock, invalid status, soft delete, ownership 403 |
+| `test_statements.py` | Empty period, with transactions, missing date params 422, ownership 403 |
+
+#### Unit tests (3 files)
+| File | Coverage |
+|---|---|
+| `test_auth_service.py` | bcrypt hash uniqueness, verify correct/wrong, JWT structure, expiry, wrong key rejection |
+| `test_transfer_validation.py` | Same-account, zero/negative amount, precision, optional description |
+| `test_account_schemas.py` | Currency case/length, invalid account type, default currency |
+
+### Coverage gaps (honest)
+| Gap | Priority |
+|---|---|
+| Token expiry (time-travel test) | HIGH — requires mocking `datetime.now` |
+| Concurrent transfer race condition | HIGH — SQLite serialises writes; worth testing against PostgreSQL |
+| Audit log rows created on state changes | MEDIUM — tested indirectly |
+| Statement opening balance carry-forward | MEDIUM — prior-period balance not explicitly tested |
+| Card 3-year expiry value | LOW — presence checked, value not asserted |
+
+### Manual interventions
+- Identified that `get_db` auto-commits made the original rollback-based fixture ineffective; redesigned to use `clean_tables` autouse
+- Added DB-level balance seeding in transfer/transaction tests (no admin credit endpoint exists)
+
+---
+
 ## Areas Where Manual Intervention Was Necessary
 
 - Dependency audit (catching missing `python-dateutil`)
