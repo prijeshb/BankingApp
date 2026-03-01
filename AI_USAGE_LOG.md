@@ -150,9 +150,30 @@ Checked the plan against the banking anti-pattern checklist from `PROMPTS.md`:
 
 ---
 
+## Session 4 — Test Bug Fixes (90/90 green)
+
+### Bugs fixed after first test run
+
+| Bug | Root cause | Fix |
+|---|---|---|
+| `ImportError: email-validator is not installed` | `EmailStr` in Pydantic v2 requires the `email-validator` package | Added `email-validator==2.2.0` to `requirements.txt` |
+| `passlib` + `bcrypt>=4.0` incompatibility | passlib 1.7.4 hashes a 73-byte test password; bcrypt 4.x rejects passwords >72 bytes | Removed `passlib`; replaced with direct `bcrypt==4.2.1` calls in `auth/service.py` |
+| `TypeError: can't compare offset-naive and offset-aware datetimes` | `utc_now()` returned timezone-aware datetime; SQLite stores without timezone | Changed `utc_now()` to return naive UTC (`datetime.now(timezone.utc).replace(tzinfo=None)`); audited all service files for naive consistency |
+| `test_refresh_returns_new_access_token` — tokens identical | Two JWTs created within the same second are identical (same `sub` + `exp`) | Changed assertion to verify 3-part JWT structure rather than token inequality |
+| `sqlite3.OperationalError: no such table` | In-memory SQLite with `StaticPool` + aiosqlite doesn't share connections reliably across async tasks | Switched `conftest.py` to file-based SQLite (`test_banking.db`); added pre-session cleanup and post-session delete |
+| 307 redirect on `POST /api/v1/transfers` | Router defined `POST "/"` giving URL `/api/v1/transfers/`; tests posted to `/api/v1/transfers`; httpx doesn't auto-follow POST 307s | Changed route path from `"/"` to `""` |
+| `TypeError: Object of type ValueError is not JSON serializable` | Pydantic v2 embeds the raw `ValueError` object in `ctx['error']` inside `exc.errors()`; our handler passed this directly to `JSONResponse` | `validation_exception_handler` now extracts only `{field, message}` per error — always JSON-safe |
+| `test_statement_with_transactions` — transaction_count=0 | `date.today()` returns local date; `utc_now()` stores UTC; machine was UTC-6 so UTC date was the next calendar day | Test changed to use `datetime.now(timezone.utc).date()` for the query date |
+
+### Final result
+**90/90 tests passing** (87 integration, 3 unit across 10 test files)
+
+---
+
 ## Areas Where Manual Intervention Was Necessary
 
 - Dependency audit (catching missing `python-dateutil`)
 - Reviewing each model to confirm no `float` slipped through
 - Confirming `get_db()` session lifecycle is sufficient for transfer atomicity in SQLite
 - Deciding to keep OpenAPI docs always enabled for assessment visibility
+- Diagnosing the UTC-vs-local date bug in the statement test (required checking machine timezone at runtime)

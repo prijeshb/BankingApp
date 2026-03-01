@@ -6,7 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    """Naive UTC datetime — SQLite strips timezone info on storage."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class UUIDPrimaryKey:

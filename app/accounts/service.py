@@ -84,7 +84,7 @@ async def list_accounts(db: AsyncSession, owner_id: str) -> list[Account]:
 
 
 async def soft_delete_account(db: AsyncSession, account: Account) -> None:
-    account.deleted_at = datetime.now(timezone.utc)
+    account.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
     account.is_active = False
     await db.flush()
     logger.info("account_soft_deleted", account_id=account.id)

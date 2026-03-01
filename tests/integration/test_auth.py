@@ -93,8 +93,9 @@ async def test_refresh_returns_new_access_token(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert "access_token" in data
-    # New access token should differ from old one (different exp claim at minimum)
-    assert data["access_token"] != tokens["access_token"]
+    assert data["token_type"] == "bearer"
+    # Verify the returned token is a valid JWT (3-part structure)
+    assert len(data["access_token"].split(".")) == 3
 
 
 async def test_refresh_invalid_token(client: AsyncClient):

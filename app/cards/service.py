@@ -86,6 +86,6 @@ async def update_card_status(
 
 
 async def soft_delete_card(db: AsyncSession, card: Card) -> None:
-    card.deleted_at = datetime.now(timezone.utc)
+    card.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.flush()
     logger.info("card_soft_deleted", card_id=card.id)

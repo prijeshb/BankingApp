@@ -11,7 +11,7 @@ from app.users.models import User
 router = APIRouter(prefix="/api/v1/transfers", tags=["transfers"])
 
 
-@router.post("/", response_model=TransferResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=TransferResponse, status_code=status.HTTP_201_CREATED)
 async def create_transfer(
     body: CreateTransferRequest,
     db: AsyncSession = Depends(get_db),

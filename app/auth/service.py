@@ -2,8 +2,8 @@ import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import bcrypt as _bcrypt
 from jose import jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,15 +15,12 @@ from app.users.models import User
 
 logger = get_logger(__name__)
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 def create_access_token(user_id: str) -> str:
@@ -74,7 +71,10 @@ async def login(
 
     raw_refresh = str(uuid.uuid4())
     token_hash = _hash_token(raw_refresh)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    # Naive UTC — SQLite strips timezone on storage
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    ).replace(tzinfo=None)
 
     db.add(
         RefreshToken(
@@ -99,7 +99,8 @@ async def refresh_access_token(db: AsyncSession, raw_refresh: str) -> str:
     )
     token = result.scalar_one_or_none()
 
-    if not token or token.expires_at < datetime.now(timezone.utc):
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    if not token or token.expires_at < now_naive:
         raise BankingException("Invalid or expired refresh token", 401, "INVALID_REFRESH_TOKEN")
 
     return create_access_token(token.user_id)
@@ -112,5 +113,5 @@ async def logout(db: AsyncSession, raw_refresh: str) -> None:
     )
     token = result.scalar_one_or_none()
     if token:
-        token.revoked_at = datetime.now(timezone.utc)
+        token.revoked_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await db.flush()

@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -9,8 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.database import Base, get_db
 from app.main import app
 
-# ── Isolated in-memory SQLite for tests ───────────────────────────────────────
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# ── File-based SQLite for tests ───────────────────────────────────────────────
+# In-memory SQLite with StaticPool does not reliably share the same DB across
+# different async connection acquisitions (aiosqlite spawns a thread per
+# connection). A local file avoids this entirely.
+_TEST_DB_PATH = "./test_banking.db"
+TEST_DATABASE_URL = f"sqlite+aiosqlite:///{_TEST_DB_PATH}"
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
@@ -30,11 +35,15 @@ def event_loop():
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_database():
+    # Remove stale DB file from a previous run, if any
+    if os.path.exists(_TEST_DB_PATH):
+        os.remove(_TEST_DB_PATH)
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
+    if os.path.exists(_TEST_DB_PATH):
+        os.remove(_TEST_DB_PATH)
 
 
 @pytest_asyncio.fixture(autouse=True)

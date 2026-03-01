@@ -78,10 +78,16 @@ async def banking_exception_handler(request: Request, exc: BankingException) -> 
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    logger.warning("validation_error", errors=exc.errors())
+    # Pydantic v2 stores the raw ValueError in ctx['error'] which is not JSON-serializable.
+    # Extract only the human-readable location and message.
+    details = [
+        {"field": ".".join(str(p) for p in err["loc"]), "message": err["msg"]}
+        for err in exc.errors()
+    ]
+    logger.warning("validation_error", details=details)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=_error_body("VALIDATION_ERROR", "Invalid request data", exc.errors()),
+        content=_error_body("VALIDATION_ERROR", "Invalid request data", details),
     )
 
 

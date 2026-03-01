@@ -15,8 +15,9 @@ async def generate_statement(
     start_date: date,
     end_date: date,
 ) -> StatementResponse:
-    start_dt = datetime(start_date.year, start_date.month, start_date.day, tzinfo=timezone.utc)
-    end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, tzinfo=timezone.utc)
+    # Naive UTC — SQLite stores datetimes without timezone info
+    start_dt = datetime(start_date.year, start_date.month, start_date.day)
+    end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
 
     # Opening balance: balance_after of the last transaction before start_date
     pre_result = await db.execute(

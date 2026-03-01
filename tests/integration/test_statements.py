@@ -1,6 +1,6 @@
 """Statement endpoint tests."""
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -59,7 +59,7 @@ async def test_statement_with_transactions(client: AsyncClient):
 
     await _fund_and_transfer(client, headers, from_acct["id"], to_acct["id"], "300.00")
 
-    today = date.today().isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()  # UTC date to match stored timestamps
     resp = await client.get(
         f"{_ACCOUNTS}/{to_acct['id']}/statements/",
         params={"start_date": today, "end_date": today},

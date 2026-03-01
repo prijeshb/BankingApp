@@ -33,7 +33,7 @@ async def update_profile(
 
 
 async def soft_delete(db: AsyncSession, user: User) -> None:
-    user.deleted_at = datetime.now(timezone.utc)
+    user.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
     user.is_active = False
     await db.flush()
     logger.info("user_soft_deleted", user_id=user.id)

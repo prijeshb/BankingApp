@@ -18,11 +18,13 @@ async def list_transactions(
 ) -> tuple[list[Transaction], int]:
     query = select(Transaction).where(Transaction.account_id == account_id)
 
+    # Naive UTC — SQLite stores datetimes without timezone info
     if start_date:
-        query = query.where(Transaction.created_at >= datetime(start_date.year, start_date.month, start_date.day, tzinfo=timezone.utc))
+        query = query.where(
+            Transaction.created_at >= datetime(start_date.year, start_date.month, start_date.day)
+        )
     if end_date:
-        from datetime import timedelta
-        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, tzinfo=timezone.utc)
+        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
         query = query.where(Transaction.created_at <= end_dt)
 
     count_result = await db.execute(
