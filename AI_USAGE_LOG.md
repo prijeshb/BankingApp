@@ -345,6 +345,16 @@ After the frontend went live, end-to-end testing surfaced gaps and bugs in the b
 | Date filter accepted future dates | No browser or form-level constraint | `max={today}` on both date inputs + form-level validation before API call |
 | Clear button misaligned with Filter button | Clear was a bare text link with different sizing | Both buttons wrapped in `flex` div; Clear given matching `rounded-md px-3 py-1.5` |
 
+### Manual interventions
+
+| Intervention | Why |
+|---|---|
+| Ran `ALTER TABLE cards ADD COLUMN card_number_encrypted TEXT` and `cvv_encrypted TEXT` directly via sqlite3 shell | DB file was locked by VS Code SQLite extension; could not delete and recreate — used non-destructive column addition instead |
+| Killed stale backend processes (`taskkill //F //PID`) manually | Multiple Python processes held port 8000 after hot-reload failed to pick up new routes; required identifying the correct PIDs via `netstat -ano` |
+| Iterative card size adjustment | Specified half-size → confirmed too small → specified double — two rounds of sizing before settling on `w-72` × `180 px` |
+| Specified UI writing rule (no technical jargon) | Directed removal of "Sensitive details are encrypted at rest. OTP verification coming soon." copy from AccountDetail.jsx |
+| End-to-end testing (login → account → deposit → reveal → transfer → statement) | All bugs in the frontend fixes table above were discovered through manual browser testing, not automated tests |
+
 ### What was NOT changed
 - All 90 backend tests still pass (no test changes needed — new endpoints covered by manual testing; withdrawal endpoint follows same pattern as deposit which already has a test)
 - No DB migration files (schema change done via direct ALTER TABLE during dev)
