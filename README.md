@@ -25,7 +25,7 @@ Clone the repo and run the setup script. It creates `.env` with a generated JWT 
 **Linux / macOS / Git Bash:**
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/prijeshb/BankingApp.git
 cd "Banking App Project"
 ./setup.sh
 ```
@@ -33,7 +33,7 @@ cd "Banking App Project"
 **Windows (Command Prompt):**
 
 ```cmd
-git clone <repository-url>
+git clone https://github.com/prijeshb/BankingApp.git
 cd "Banking App Project"
 setup.bat
 ```
@@ -43,7 +43,7 @@ The app will be available at `http://localhost:8000`.
 ### Option 2: Docker (manual)
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/prijeshb/BankingApp.git
 cd "Banking App Project"
 cp .env.example .env
 ```
@@ -75,7 +75,7 @@ docker compose logs -f
 **1. Clone and configure environment**
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/prijeshb/BankingApp.git
 cd "Banking App Project"
 cp .env.example .env
 ```
@@ -125,4 +125,6 @@ pytest -v
 
 ## Documentation
 
-See [docs/project-info.md](docs/project-info.md) for project structure, API endpoints, architecture, and environment variables.
+- [docs/project-info.md](docs/project-info.md) — Project structure, API endpoints, architecture, and environment variables
+- [docs/security.md](docs/security.md) — Security measures, encryption, auth, and known limitations
+- [docs/roadmap.md](docs/roadmap.md) — Future features and roadmap

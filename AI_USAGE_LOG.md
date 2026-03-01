@@ -246,6 +246,7 @@ Full banking-checklist review surfaced the following issues:
 
 ### Prompt Used
 > Frontend plan prompt from `PROMPTS.md` — full feature coverage across all API domains.
+> "Build a React frontend covering all features: Auth, Accounts, Transactions, Transfers, Cards, Statements."
 
 **Stack chosen:** Vite + React 18 + Tailwind CSS, Axios, React Router v6
 
@@ -312,6 +313,10 @@ Full banking-checklist review surfaced the following issues:
 
 ## Session 7 — Backend Extensions & Bug Fixes (Post-Frontend)
 
+### Prompt Used
+> Iterative bug reports and feature requests during end-to-end browser testing:
+> "Card not found on reveal for stale cards", "Copy and Hide buttons non-functional on revealed card", "Deposits counted as debits in statement", "Date filter accepted future dates"
+
 ### Context
 After the frontend went live, end-to-end testing surfaced gaps and bugs in the backend that needed fixing.
 
@@ -363,6 +368,10 @@ After the frontend went live, end-to-end testing surfaced gaps and bugs in the b
 
 ## Session 8 — Frontend Bug Fixes & Account Number Transfers
 
+### Prompt Used
+> Iterative bug reports during browser testing:
+> "/transfer navigation doesn't work", "while registering received Invalid request data", "Rendered fewer hooks than expected", "after deposit transactions table doesn't refresh", "even after entering valid account number it doesn't transfer ACC9739133631", "make it as notice: One debit and one virtual card maximum per account"
+
 ### Context
 After merging PR #1 (UI/nav improvements), end-to-end browser testing uncovered several bugs across the React frontend. All fixes were committed to `feat/ui-nav-improvements` and merged via PR #1.
 
@@ -413,6 +422,11 @@ After merging PR #1 (UI/nav improvements), end-to-end browser testing uncovered 
 
 ## Session 9 — Documentation & Setup Scripts
 
+### Prompt Used
+> "create readme with steps to setup, test, architecture, required"
+> "let's divide setup into three options — one create script supporting windows and shell to run using docker, second run manually docker commands, third using clone and configure environment"
+> "test if these setup instructions works"
+
 ### Context
 Project needed a README, detailed project docs, and automated setup scripts for onboarding.
 
@@ -453,4 +467,46 @@ All three setup options tested end-to-end:
 - `docs/project-info.md` — new (structure, API, architecture, env vars)
 - `setup.sh` — new (Linux/macOS/Git Bash quick start)
 - `setup.bat` — new (Windows quick start)
+
+---
+
+## Session 10 — Security & Roadmap Documentation
+
+### Prompt Used
+> "Security considerations document"
+> "Future considerations/roadmap document"
+> "let's make sure there is no sensitive info added in log messages"
+
+### What AI produced
+
+#### docs/security.md
+Security considerations document covering:
+- Authentication (JWT, bcrypt, refresh flow, user enumeration prevention)
+- Card encryption (Fernet/AES-128-CBC, masked storage, SHA-256 hash)
+- Input validation (UUID path params, Pydantic schemas, email validation)
+- Authorization and ownership checks across all resource types
+- Transfer safety (atomicity, idempotency, balance checks)
+- Audit trail (immutable, append-only, with correlation IDs)
+- Error handling (no stack traces or internal details exposed to clients)
+- Known limitations table with recommendations (rate limiting, 2FA, security headers, etc.)
+
+#### docs/roadmap.md
+Future features organized into 6 phases:
+- Phase 1: Security Hardening (rate limiting, 2FA, password complexity, security headers)
+- Phase 2: Accounts & Transactions (categories, CSV export, interest, recurring payments)
+- Phase 3: Cards (Luhn validation, spending limits, PIN management)
+- Phase 4: Transfers (scheduled transfers, receipts, beneficiary list)
+- Phase 5: Frontend & UX (dark mode, real-time updates, admin panel, mobile app)
+- Phase 6: Infrastructure (PostgreSQL, CI/CD, production deployment)
+
+#### Security audit of log messages
+Full audit of all logging calls across the codebase:
+- Verified no passwords, tokens, card numbers, or CVVs are logged anywhere
+- Fixed `app/common/exceptions.py:113`: changed `exc_info=exc` (full stack trace with local variables) to `error_type` + `error_message` (safe metadata only)
+
+### Files added/changed
+- `docs/security.md` — new
+- `docs/roadmap.md` — new
+- `app/common/exceptions.py` — sanitized unhandled exception logging
+- `README.md` — updated docs section with links to security and roadmap
 
