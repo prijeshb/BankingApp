@@ -166,7 +166,7 @@ export default function StatementPage() {
         {account && (
           <p className="mt-1 text-sm text-gray-500">
             {account.account_number} &middot;{' '}
-            <Badge status={account.account_type} /> &middot;{' '}
+            <Badge value={account.account_type} /> &middot;{' '}
             {account.currency}
           </p>
         )}
@@ -317,7 +317,7 @@ export default function StatementPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
                   {statement.transactions.map((tx, idx) => {
-                    const isCredit = tx.transaction_type === 'TRANSFER_IN' || tx.transaction_type === 'DEPOSIT'
+                    const isCredit = tx.transaction_type === 'TRANSFER_IN' || tx.transaction_type === 'DEPOSIT' || tx.transaction_type === 'CREDIT'
                     return (
                       <tr key={tx.id ?? idx} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 whitespace-nowrap text-gray-600">

@@ -16,8 +16,10 @@ export default function Layout() {
   const [open, setOpen]  = useState(false)
 
   // Detect current account ID so Statement link can appear in sidebar
-  const accountMatch = useMatch('/accounts/:id') || useMatch('/accounts/:id/*')
-  const currentAccountId = accountMatch?.params?.id
+  // Both hooks must always be called — never short-circuit with ||
+  const matchExact  = useMatch('/accounts/:id')
+  const matchNested = useMatch('/accounts/:id/*')
+  const currentAccountId = (matchExact || matchNested)?.params?.id
 
   const handleLogout = async () => {
     await logout()

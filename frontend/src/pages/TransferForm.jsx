@@ -38,7 +38,10 @@ export default function TransferForm() {
         const eligible = (data.accounts ?? []).filter(canTransferFrom)
         setAccounts(eligible)
         if (eligible.length > 0) {
-          setForm(f => ({ ...f, from_account_id: eligible[0].id }))
+          const preselect = fromAccountId && eligible.find(a => a.id === fromAccountId)
+            ? fromAccountId
+            : eligible[0].id
+          setForm(f => ({ ...f, from_account_id: preselect }))
         }
       })
       .catch(() => setError('Could not load your accounts.'))
@@ -59,12 +62,6 @@ export default function TransferForm() {
     if (!form.from_account_id) errs.from_account_id = 'Select a source account.'
     if (!form.to_account_id.trim()) {
       errs.to_account_id = 'Recipient account number is required.'
-    } else if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        form.to_account_id.trim()
-      )
-    ) {
-      errs.to_account_id = 'Please enter a valid account number.'
     }
     if (!form.amount) {
       errs.amount = 'Amount is required.'
@@ -91,9 +88,26 @@ export default function TransferForm() {
 
     setSubmitting(true)
     try {
+      // Resolve account number to UUID
+      const recipient = form.to_account_id.trim()
+      let toAccountId = recipient
+
+      // If it's not already a UUID, look it up by account number
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipient)
+      if (!isUUID) {
+        try {
+          const { data } = await accountsApi.lookupByNumber(recipient)
+          toAccountId = data.id
+        } catch {
+          setFieldErrors({ to_account_id: 'Account not found. Check the number and try again.' })
+          setSubmitting(false)
+          return
+        }
+      }
+
       const payload = {
         from_account_id: form.from_account_id,
-        to_account_id:   form.to_account_id.trim(),
+        to_account_id:   toAccountId,
         amount:          parseFloat(form.amount).toFixed(2),
         idempotency_key: idempotencyKey,
         ...(form.description.trim() && { description: form.description.trim() }),
@@ -226,7 +240,7 @@ export default function TransferForm() {
             value={form.to_account_id}
             onChange={handleChange}
             disabled={submitting}
-            placeholder="Paste the account number here"
+            placeholder="e.g. ACC9739133631"
             autoComplete="off"
             spellCheck="false"
             aria-required="true"
