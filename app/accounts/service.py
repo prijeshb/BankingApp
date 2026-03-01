@@ -1,5 +1,6 @@
 import random
 import string
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -82,6 +83,66 @@ async def list_accounts(db: AsyncSession, owner_id: str) -> list[Account]:
         )
     )
     return list(result.scalars().all())
+
+
+async def deposit(
+    db: AsyncSession,
+    account_id: str,
+    owner_id: str,
+    amount: Decimal,
+    description: str | None = None,
+) -> Account:
+    from app.common.exceptions import AccountInactiveError
+    from app.transactions.service import create_transaction
+    from app.transactions.models import TransactionType
+
+    account = await get_account(db, account_id, owner_id=owner_id)
+    if not account.is_active:
+        raise AccountInactiveError()
+    account.balance += amount
+    await create_transaction(
+        db,
+        account_id=account.id,
+        idempotency_key=str(uuid.uuid4()),
+        transaction_type=TransactionType.DEPOSIT,
+        amount=amount,
+        balance_after=account.balance,
+        description=description or "Deposit",
+    )
+    await db.flush()
+    logger.info("account_deposit", account_id=account.id, amount=str(amount))
+    return account
+
+
+async def withdraw(
+    db: AsyncSession,
+    account_id: str,
+    owner_id: str,
+    amount: Decimal,
+    description: str | None = None,
+) -> Account:
+    from app.common.exceptions import AccountInactiveError, InsufficientFundsError
+    from app.transactions.service import create_transaction
+    from app.transactions.models import TransactionType
+
+    account = await get_account(db, account_id, owner_id=owner_id)
+    if not account.is_active:
+        raise AccountInactiveError()
+    if account.balance < amount:
+        raise InsufficientFundsError()
+    account.balance -= amount
+    await create_transaction(
+        db,
+        account_id=account.id,
+        idempotency_key=str(uuid.uuid4()),
+        transaction_type=TransactionType.WITHDRAWAL,
+        amount=amount,
+        balance_after=account.balance,
+        description=description or "Withdrawal",
+    )
+    await db.flush()
+    logger.info("account_withdrawal", account_id=account.id, amount=str(amount))
+    return account
 
 
 async def soft_delete_account(db: AsyncSession, account: Account) -> None:

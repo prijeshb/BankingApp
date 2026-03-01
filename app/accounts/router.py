@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.accounts import service
-from app.accounts.schemas import AccountListResponse, AccountResponse, CreateAccountRequest
+from app.accounts.schemas import AccountListResponse, AccountResponse, CreateAccountRequest, DepositRequest, WithdrawalRequest
 from app.audit.service import log_action
 from app.auth.dependencies import get_current_user
 from app.common.types import UUIDPath
@@ -56,6 +56,40 @@ async def get_account(
     current_user: User = Depends(get_current_user),
 ):
     account = await service.get_account(db, account_id, owner_id=current_user.id)
+    return AccountResponse.model_validate(account)
+
+
+@router.post("/{account_id}/deposit", response_model=AccountResponse)
+async def deposit(
+    account_id: UUIDPath,
+    body: DepositRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    account = await service.deposit(
+        db,
+        account_id=account_id,
+        owner_id=current_user.id,
+        amount=body.amount,
+        description=body.description,
+    )
+    return AccountResponse.model_validate(account)
+
+
+@router.post("/{account_id}/withdraw", response_model=AccountResponse)
+async def withdraw(
+    account_id: UUIDPath,
+    body: WithdrawalRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    account = await service.withdraw(
+        db,
+        account_id=account_id,
+        owner_id=current_user.id,
+        amount=body.amount,
+        description=body.description,
+    )
     return AccountResponse.model_validate(account)
 
 

@@ -44,7 +44,7 @@ async def generate_statement(
     )
     transactions = list(result.scalars().all())
 
-    credit_types = {TransactionType.CREDIT, TransactionType.TRANSFER_IN}
+    credit_types = {TransactionType.CREDIT, TransactionType.TRANSFER_IN, TransactionType.DEPOSIT}
     total_credits = sum(
         t.amount for t in transactions if t.transaction_type in credit_types
     ) or Decimal("0.0000")

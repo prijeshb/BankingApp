@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cards.models import Card, CardStatus, CardType
-from app.common.exceptions import InvalidCardStatusError, OwnershipError, ResourceNotFoundError
+from app.common.crypto import decrypt, encrypt
+from app.common.exceptions import BankingException, InvalidCardStatusError, OwnershipError, ResourceNotFoundError
 from app.common.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,10 +27,15 @@ def _hash_card_number(number: str) -> str:
     return hashlib.sha256(number.encode()).hexdigest()
 
 
+def _generate_cvv() -> str:
+    return "".join(str(secrets.randbelow(10)) for _ in range(3))
+
+
 async def create_card(
     db: AsyncSession, account_id: str, card_type: CardType
 ) -> Card:
     raw_number = _generate_card_number()
+    cvv = _generate_cvv()
     # H-2: use UTC date to be consistent with how all other timestamps are stored
     expiry = datetime.now(timezone.utc).date().replace(day=1)
     # 3-year expiry, last day of that month
@@ -39,6 +45,8 @@ async def create_card(
         account_id=account_id,
         card_number_masked=_mask_card_number(raw_number),
         card_number_hash=_hash_card_number(raw_number),
+        card_number_encrypted=encrypt(raw_number),
+        cvv_encrypted=encrypt(cvv),
         card_type=card_type,
         expiry_date=expiry,
     )
@@ -90,6 +98,37 @@ async def update_card_status(
     await db.flush()
     logger.info("card_status_updated", card_id=card.id, status=new_status)
     return card
+
+
+async def reveal_card(
+    db: AsyncSession,
+    card_id: str,
+    requesting_user_id: str,
+    password: str,
+) -> dict:
+    """Verify user password then return decrypted card number and CVV."""
+    from app.users.models import User
+    from app.auth.service import verify_password
+    from sqlalchemy import select as sa_select
+
+    card = await get_card(db, card_id, requesting_user_id=requesting_user_id)
+
+    if not card.card_number_encrypted or not card.cvv_encrypted:
+        raise BankingException("Card details not available for this card", 404, "NOT_FOUND")
+
+    # Load the user to verify their password
+    result = await db.execute(sa_select(User).where(User.id == requesting_user_id))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(password, user.hashed_password):
+        raise BankingException("Incorrect password", 401, "INVALID_PASSWORD")
+
+    raw_number = decrypt(card.card_number_encrypted)
+    cvv = decrypt(card.cvv_encrypted)
+    # Format as groups of 4
+    formatted_number = " ".join(raw_number[i:i+4] for i in range(0, 16, 4))
+    expiry = card.expiry_date.strftime("%m/%y")
+
+    return {"card_number": formatted_number, "cvv": cvv, "expiry_date": expiry}
 
 
 async def soft_delete_card(db: AsyncSession, card: Card) -> None:

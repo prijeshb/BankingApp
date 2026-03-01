@@ -5,7 +5,7 @@ from app.accounts.service import get_account
 from app.audit.service import log_action
 from app.auth.dependencies import get_current_user
 from app.cards import service
-from app.cards.schemas import CardListResponse, CardResponse, CreateCardRequest, UpdateCardStatusRequest
+from app.cards.schemas import CardListResponse, CardResponse, CardRevealRequest, CardRevealResponse, CreateCardRequest, UpdateCardStatusRequest
 from app.common.types import UUIDPath
 from app.database import get_db
 from app.users.models import User
@@ -85,6 +85,22 @@ async def update_card_status(
         ip_address=request.client.host if request.client else None,
     )
     return CardResponse.model_validate(updated)
+
+
+@router.post("/api/v1/cards/{card_id}/reveal", response_model=CardRevealResponse)
+async def reveal_card(
+    card_id: UUIDPath,
+    body: CardRevealRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await service.reveal_card(
+        db,
+        card_id=card_id,
+        requesting_user_id=current_user.id,
+        password=body.password,
+    )
+    return CardRevealResponse(**result)
 
 
 @router.delete("/api/v1/cards/{card_id}", status_code=status.HTTP_204_NO_CONTENT)

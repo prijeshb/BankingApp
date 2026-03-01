@@ -35,3 +35,13 @@ class UpdateCardStatusRequest(BaseModel):
 class CardListResponse(BaseModel):
     cards: list[CardResponse]
     total: int
+
+
+class CardRevealRequest(BaseModel):
+    password: str
+
+
+class CardRevealResponse(BaseModel):
+    card_number: str   # formatted "XXXX XXXX XXXX XXXX"
+    cvv: str
+    expiry_date: str   # "MM/YY"

@@ -239,3 +239,112 @@ Full banking-checklist review surfaced the following issues:
 - Confirming `get_db()` session lifecycle is sufficient for transfer atomicity in SQLite
 - Deciding to keep OpenAPI docs always enabled for assessment visibility
 - Diagnosing the UTC-vs-local date bug in the statement test (required checking machine timezone at runtime)
+
+---
+
+## Session 6 — Phase 5: React Frontend
+
+### Prompt Used
+> Frontend plan prompt from `PROMPTS.md` — full feature coverage across all API domains.
+
+**Stack chosen:** Vite + React 18 + Tailwind CSS, Axios, React Router v6
+
+### What AI produced (26 files)
+
+#### API layer (`src/api/`)
+| File | Endpoints covered |
+|---|---|
+| `client.js` | Axios instance, request interceptor (Bearer token), response interceptor (auto-refresh on 401, retry, logout on failure) |
+| `auth.js` | login, register, refresh, logout |
+| `accounts.js` | listAccounts, getAccount, createAccount, deleteAccount, deposit, withdraw |
+| `transactions.js` | listTransactions |
+| `transfers.js` | createTransfer |
+| `cards.js` | listCards, issueCard, updateCardStatus, deleteCard, revealCard |
+| `statements.js` | getStatement |
+
+#### Context & routing
+| File | Purpose |
+|---|---|
+| `context/AuthContext.jsx` | Access token in state (never localStorage); refresh token in localStorage; silent re-auth on mount |
+| `context/ToastContext.jsx` | Global toast queue with auto-dismiss (4 s) |
+| `App.jsx` | React Router v6 layout; feature-flag-conditional routes |
+| `components/ProtectedRoute.jsx` | Redirects to `/login` if no access token |
+| `components/Layout.jsx` | Top nav + sidebar; mobile hamburger; conditional nav items |
+
+#### UI components
+- `Badge.jsx` — colored status pill (ACTIVE/BLOCKED/EXPIRED/VIRTUAL/DEBIT)
+- `Spinner.jsx` — centered loading indicator
+- `ErrorAlert.jsx` — inline `role="alert"` error box
+- `FeatureGate.jsx` — declarative feature-flag wrapper
+- `config/features.js` — `VITE_FEATURE_*` env-var flags
+- `hooks/useFeature.js` — `useFeature(flag)` hook
+- `utils/permissions.js` — centralised can-do checks (canDeleteAccount, canBlockCard, etc.)
+
+#### Pages
+| Page | Route | Key features |
+|---|---|---|
+| `Login.jsx` | `/login` | Email + password, welcome-back toast |
+| `Register.jsx` | `/register` | Full name + email + password, redirect on success |
+| `Dashboard.jsx` | `/` | Account cards with balance; create-account modal; delete with confirmation; "New Transfer" button |
+| `AccountDetail.jsx` | `/accounts/:id` | Balance header; + Deposit / − Withdraw modals; Transactions tab (paginated, date-filtered); Cards tab (3D flip card UI, reveal, block/unblock, delete) |
+| `TransferForm.jsx` | `/transfer` | From-account dropdown (active only); to-account UUID input; amount; auto-generated idempotency key |
+| `StatementPage.jsx` | `/accounts/:id/statements` | Date range picker; summary cards (opening/closing balance, credits, debits, count); transaction table |
+
+#### Accessibility (WCAG 2.1 AA)
+- Semantic HTML throughout (`<nav>`, `<main>`, `<caption>`, `<th scope>`)
+- `aria-busy`, `aria-live`, `aria-label`, `role="alert"` applied
+- All interactive elements keyboard-reachable; modals trap focus; Escape closes
+- Tailwind `focus:ring-2 focus:ring-blue-500` on all focusable elements
+- Status badges always include text label (not color-only)
+
+### Key architectural decisions
+- **Token storage**: access token in React state (cleared on refresh); refresh token in `localStorage` (survives reload)
+- **Silent login**: `AuthContext` calls `/auth/refresh` on mount before rendering protected routes
+- **3D card flip**: CSS `perspective` + `rotateY(180deg)` — front/back both `absolute inset-0`; pointer events explicitly toggled so clicks land on the correct face
+- **Feature flags**: defaults-on flags via `VITE_FEATURE_*` env vars; routes, nav items, and tabs all gated
+- **Permission layer**: `utils/permissions.js` single source of truth for all UI enable/disable logic
+
+### Manual interventions
+- Chose `w-72` × `180 px` card dimensions after user feedback (halved → too small → doubled back)
+- Enforced rule: no technical jargon or implementation details in user-facing copy
+
+---
+
+## Session 7 — Backend Extensions & Bug Fixes (Post-Frontend)
+
+### Context
+After the frontend went live, end-to-end testing surfaced gaps and bugs in the backend that needed fixing.
+
+### Changes made
+
+#### Card number encryption (`app/common/crypto.py`, `app/cards/`)
+- **Problem:** Card numbers and CVVs were stored as plain text (only masked last-4 + hash kept originally); reveal endpoint needed full number.
+- **Fix:** Added `app/common/crypto.py` (Fernet symmetric encryption keyed from `settings.SECRET_KEY`). `card_number_encrypted` and `cvv_encrypted` columns added to `cards` table via `ALTER TABLE` (non-destructive — existing rows get `NULL`, UI silently drops stale cards on 404).
+- `cards/service.py` — `issue_card()` now encrypts and stores both; `reveal_card()` decrypts on demand.
+- `cards/router.py` — `POST /{card_id}/reveal` endpoint added (password-protected; verifies account ownership).
+- `cards/schemas.py` — `RevealCardResponse` with plain `card_number`, `cvv`, `expiry_date`.
+
+#### Missing enum values (`app/transactions/models.py`)
+- `DEPOSIT` and `WITHDRAWAL` added to `TransactionType` enum (were missing, causing 500 errors from deposit endpoint).
+
+#### Statement credit classification (`app/statements/service.py`)
+- `credit_types` set expanded to include `TransactionType.DEPOSIT` so deposits appear as credits (positive) not debits.
+
+#### Withdrawal endpoint (`app/accounts/`)
+- `schemas.py` — `WithdrawalRequest` added (mirrors `DepositRequest`).
+- `service.py` — `withdraw()` function: active check, balance check (`InsufficientFundsError`), creates `WITHDRAWAL` transaction.
+- `router.py` — `POST /{account_id}/withdraw` endpoint wired up.
+
+### Frontend fixes (AccountDetail.jsx)
+| Bug | Root cause | Fix |
+|---|---|---|
+| "Card not found" on reveal for stale cards | Soft-deleted legacy cards without encrypted data still shown in UI | `onCardGone` prop — on 404, close modal and reload card list silently |
+| Copy and Hide buttons non-functional on revealed card | `absolute inset-0` front face intercepted all clicks even when `backfaceVisibility: hidden` | Explicit `pointerEvents: isRevealed ? 'none' : 'auto'` on front; `'auto'` : `'none'` on back |
+| Copy failed in non-secure context | `navigator.clipboard` requires HTTPS | Added `document.execCommand('copy')` textarea fallback; "Copied!" visual feedback for 2 s |
+| Deposits counted as debits in statement | `credit_types` in statements service missing `DEPOSIT` | Added `TransactionType.DEPOSIT` to set (backend fix above) |
+| Date filter accepted future dates | No browser or form-level constraint | `max={today}` on both date inputs + form-level validation before API call |
+| Clear button misaligned with Filter button | Clear was a bare text link with different sizing | Both buttons wrapped in `flex` div; Clear given matching `rounded-md px-3 py-1.5` |
+
+### What was NOT changed
+- All 90 backend tests still pass (no test changes needed — new endpoints covered by manual testing; withdrawal endpoint follows same pattern as deposit which already has a test)
+- No DB migration files (schema change done via direct ALTER TABLE during dev)

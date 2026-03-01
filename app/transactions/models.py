@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 class TransactionType(str, enum.Enum):
     DEBIT = "DEBIT"
     CREDIT = "CREDIT"
+    DEPOSIT = "DEPOSIT"
+    WITHDRAWAL = "WITHDRAWAL"
     TRANSFER_IN = "TRANSFER_IN"
     TRANSFER_OUT = "TRANSFER_OUT"
     FEE = "FEE"

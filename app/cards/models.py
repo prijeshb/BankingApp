@@ -35,6 +35,9 @@ class Card(UUIDPrimaryKey, TimestampMixin, Base):
     card_number_masked: Mapped[str] = mapped_column(String(19), nullable=False)
     # SHA-256 of the full card number for lookup
     card_number_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Fernet-encrypted full card number and CVV for authenticated reveal
+    card_number_encrypted: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    cvv_encrypted: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     card_type: Mapped[CardType] = mapped_column(SAEnum(CardType), nullable=False)
     status: Mapped[CardStatus] = mapped_column(
         SAEnum(CardStatus), nullable=False, default=CardStatus.ACTIVE
