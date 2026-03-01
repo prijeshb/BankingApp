@@ -129,14 +129,14 @@ async def test_logout_requires_auth(client: AsyncClient):
     resp = await client.post(
         f"{_BASE}/logout", json={"refresh_token": tokens["refresh_token"]}
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 # ── Protected route — token validation ───────────────────────────────────────
 
 async def test_protected_route_no_token(client: AsyncClient):
     resp = await client.get("/api/v1/users/me")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 async def test_protected_route_malformed_token(client: AsyncClient):

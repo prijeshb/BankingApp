@@ -60,6 +60,24 @@ class AccountInactiveError(BankingException):
         )
 
 
+class AccountHasFundsError(BankingException):
+    def __init__(self):
+        super().__init__(
+            message="Cannot close an account with a non-zero balance",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            code="ACCOUNT_HAS_FUNDS",
+        )
+
+
+class InvalidCardStatusError(BankingException):
+    def __init__(self, reason: str):
+        super().__init__(
+            message=reason,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            code="INVALID_CARD_STATUS",
+        )
+
+
 def _error_body(code: str, message: str, details=None) -> dict:
     body: dict = {"error": {"code": code, "message": message}}
     if details is not None:

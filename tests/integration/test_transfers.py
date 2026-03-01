@@ -292,4 +292,4 @@ async def test_transfer_requires_auth(client: AsyncClient):
             "idempotency_key": "k",
         },
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401

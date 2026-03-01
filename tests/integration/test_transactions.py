@@ -104,8 +104,8 @@ async def test_list_transactions_pagination(client: AsyncClient):
 
 
 async def test_list_transactions_requires_auth(client: AsyncClient):
-    resp = await client.get(f"{_ACCOUNTS}/some-id/transactions/")
-    assert resp.status_code == 403
+    resp = await client.get(f"{_ACCOUNTS}/00000000-0000-0000-0000-000000000000/transactions/")
+    assert resp.status_code == 401
 
 
 async def test_list_transactions_other_users_account_forbidden(client: AsyncClient):
@@ -146,6 +146,6 @@ async def test_get_transaction_not_found(client: AsyncClient):
     account = await create_account(client, headers)
 
     resp = await client.get(
-        f"{_ACCOUNTS}/{account['id']}/transactions/nonexistent", headers=headers
+        f"{_ACCOUNTS}/{account['id']}/transactions/00000000-0000-0000-0000-000000000000", headers=headers
     )
     assert resp.status_code == 404

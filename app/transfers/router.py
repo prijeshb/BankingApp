@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import log_action
 from app.auth.dependencies import get_current_user
+from app.common.types import UUIDPath
 from app.database import get_db
 from app.transactions.schemas import CreateTransferRequest, TransferResponse
 from app.transfers import service
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/v1/transfers", tags=["transfers"])
 
 @router.post("", response_model=TransferResponse, status_code=status.HTTP_201_CREATED)
 async def create_transfer(
+    request: Request,
     body: CreateTransferRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -37,13 +39,14 @@ async def create_transfer(
             "to_account_id": body.to_account_id,
             "amount": str(body.amount),
         },
+        ip_address=request.client.host if request.client else None,
     )
     return TransferResponse.model_validate(transfer)
 
 
 @router.get("/{transfer_id}", response_model=TransferResponse)
 async def get_transfer(
-    transfer_id: str,
+    transfer_id: UUIDPath,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

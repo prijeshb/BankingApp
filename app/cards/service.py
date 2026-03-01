@@ -1,21 +1,21 @@
 import hashlib
-import random
-import string
-from datetime import date, datetime, timezone
+import secrets
+from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cards.models import Card, CardStatus, CardType
-from app.common.exceptions import OwnershipError, ResourceNotFoundError
+from app.common.exceptions import InvalidCardStatusError, OwnershipError, ResourceNotFoundError
 from app.common.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 def _generate_card_number() -> str:
-    return "".join(random.choices(string.digits, k=16))
+    # M-1: use secrets (cryptographically secure) instead of random
+    return "".join(str(secrets.randbelow(10)) for _ in range(16))
 
 
 def _mask_card_number(number: str) -> str:
@@ -30,7 +30,8 @@ async def create_card(
     db: AsyncSession, account_id: str, card_type: CardType
 ) -> Card:
     raw_number = _generate_card_number()
-    expiry = date.today().replace(day=1)
+    # H-2: use UTC date to be consistent with how all other timestamps are stored
+    expiry = datetime.now(timezone.utc).date().replace(day=1)
     # 3-year expiry, last day of that month
     expiry = (expiry + relativedelta(years=3, months=1)) - relativedelta(days=1)
 
@@ -79,6 +80,12 @@ async def get_card(
 async def update_card_status(
     db: AsyncSession, card: Card, new_status: CardStatus
 ) -> Card:
+    # M-4: EXPIRED is a system-managed state; it cannot be set via the API
+    if new_status == CardStatus.EXPIRED:
+        raise InvalidCardStatusError("EXPIRED status cannot be set manually")
+    # Deleted-entity guard: prevent status changes on expired cards
+    if card.status == CardStatus.EXPIRED:
+        raise InvalidCardStatusError("Cannot change the status of an expired card")
     card.status = new_status
     await db.flush()
     logger.info("card_status_updated", card_id=card.id, status=new_status)

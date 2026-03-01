@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.accounts.service import get_account
@@ -6,6 +6,7 @@ from app.audit.service import log_action
 from app.auth.dependencies import get_current_user
 from app.cards import service
 from app.cards.schemas import CardListResponse, CardResponse, CreateCardRequest, UpdateCardStatusRequest
+from app.common.types import UUIDPath
 from app.database import get_db
 from app.users.models import User
 
@@ -18,7 +19,8 @@ router = APIRouter(tags=["cards"])
     status_code=status.HTTP_201_CREATED,
 )
 async def create_card(
-    account_id: str,
+    request: Request,
+    account_id: UUIDPath,
     body: CreateCardRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -32,13 +34,14 @@ async def create_card(
         resource_id=card.id,
         user_id=current_user.id,
         new_values={"card_type": body.card_type, "account_id": account_id},
+        ip_address=request.client.host if request.client else None,
     )
     return CardResponse.model_validate(card)
 
 
 @router.get("/api/v1/accounts/{account_id}/cards", response_model=CardListResponse)
 async def list_cards(
-    account_id: str,
+    account_id: UUIDPath,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -52,7 +55,7 @@ async def list_cards(
 
 @router.get("/api/v1/cards/{card_id}", response_model=CardResponse)
 async def get_card(
-    card_id: str,
+    card_id: UUIDPath,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -62,7 +65,8 @@ async def get_card(
 
 @router.patch("/api/v1/cards/{card_id}/status", response_model=CardResponse)
 async def update_card_status(
-    card_id: str,
+    request: Request,
+    card_id: UUIDPath,
     body: UpdateCardStatusRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -78,13 +82,15 @@ async def update_card_status(
         user_id=current_user.id,
         old_values={"status": old_status},
         new_values={"status": body.status},
+        ip_address=request.client.host if request.client else None,
     )
     return CardResponse.model_validate(updated)
 
 
 @router.delete("/api/v1/cards/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_card(
-    card_id: str,
+    request: Request,
+    card_id: UUIDPath,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -96,4 +102,5 @@ async def delete_card(
         resource_type="Card",
         resource_id=card_id,
         user_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
     )

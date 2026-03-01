@@ -74,10 +74,10 @@ async def test_statement_with_transactions(client: AsyncClient):
 
 async def test_statement_requires_auth(client: AsyncClient):
     resp = await client.get(
-        f"{_ACCOUNTS}/some-id/statements/",
+        f"{_ACCOUNTS}/00000000-0000-0000-0000-000000000000/statements/",
         params={"start_date": "2024-01-01", "end_date": "2024-01-31"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 async def test_statement_other_users_account_forbidden(client: AsyncClient):

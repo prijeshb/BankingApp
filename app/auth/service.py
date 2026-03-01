@@ -6,6 +6,7 @@ import bcrypt as _bcrypt
 from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth.models import RefreshToken
 from app.common.exceptions import BankingException
@@ -14,6 +15,7 @@ from app.config import settings
 from app.users.models import User
 
 logger = get_logger(__name__)
+
 
 def hash_password(password: str) -> str:
     return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
@@ -56,7 +58,8 @@ async def register(db: AsyncSession, email: str, password: str, full_name: str) 
 
 async def login(
     db: AsyncSession, email: str, password: str
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
+    """Returns (access_token, refresh_token, user_id)."""
     result = await db.execute(
         select(User).where(User.email == email, User.deleted_at.is_(None))
     )
@@ -86,13 +89,16 @@ async def login(
     await db.flush()
 
     logger.info("user_logged_in", user_id=user.id)
-    return access_token, raw_refresh
+    return access_token, raw_refresh, user.id
 
 
 async def refresh_access_token(db: AsyncSession, raw_refresh: str) -> str:
+    """C-2: verify token is valid AND the owning account is still active."""
     token_hash = _hash_token(raw_refresh)
     result = await db.execute(
-        select(RefreshToken).where(
+        select(RefreshToken)
+        .options(selectinload(RefreshToken.user))
+        .where(
             RefreshToken.token_hash == token_hash,
             RefreshToken.revoked_at.is_(None),
         )
@@ -103,13 +109,21 @@ async def refresh_access_token(db: AsyncSession, raw_refresh: str) -> str:
     if not token or token.expires_at < now_naive:
         raise BankingException("Invalid or expired refresh token", 401, "INVALID_REFRESH_TOKEN")
 
+    # C-2: account may have been deactivated or deleted after the token was issued
+    if not token.user or not token.user.is_active or token.user.deleted_at is not None:
+        raise BankingException("Account is disabled", 401, "INVALID_REFRESH_TOKEN")
+
     return create_access_token(token.user_id)
 
 
-async def logout(db: AsyncSession, raw_refresh: str) -> None:
+async def logout(db: AsyncSession, raw_refresh: str, user_id: str) -> None:
+    """C-1: only revoke tokens that belong to the requesting user."""
     token_hash = _hash_token(raw_refresh)
     result = await db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        select(RefreshToken).where(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.user_id == user_id,   # ownership check
+        )
     )
     token = result.scalar_one_or_none()
     if token:

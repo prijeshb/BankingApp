@@ -1,12 +1,13 @@
 import random
 import string
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.accounts.models import Account, AccountType
-from app.common.exceptions import OwnershipError, ResourceNotFoundError
+from app.common.exceptions import AccountHasFundsError, OwnershipError, ResourceNotFoundError
 from app.common.logging import get_logger
 
 logger = get_logger(__name__)
@@ -84,6 +85,9 @@ async def list_accounts(db: AsyncSession, owner_id: str) -> list[Account]:
 
 
 async def soft_delete_account(db: AsyncSession, account: Account) -> None:
+    # M-2: prevent closing an account that still holds funds
+    if account.balance != Decimal("0"):
+        raise AccountHasFundsError()
     account.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
     account.is_active = False
     await db.flush()

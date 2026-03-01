@@ -170,6 +170,68 @@ Checked the plan against the banking anti-pattern checklist from `PROMPTS.md`:
 
 ---
 
+---
+
+## Session 5 — Phase 4: Code Review + Hardening
+
+### Prompt Used
+> Code Review + Pre-Submit prompts from `PROMPTS.md`, applied to the full codebase.
+
+### What AI produced (code review)
+
+Full banking-checklist review surfaced the following issues:
+
+| ID | Severity | Finding |
+|---|---|---|
+| C-1 | CRITICAL | `logout()` didn't verify the refresh token belonged to the requesting user — any user with another user's token UUID could revoke it |
+| C-2 | CRITICAL | `refresh_access_token()` never checked if the user was still active/deleted after token issuance |
+| H-1 | HIGH | `register`, `login`, `logout`, `update_me`, `delete_me` were not writing to the AuditLog |
+| H-2 | HIGH | `cards/service.py` used `date.today()` (local timezone) for card expiry — inconsistent with UTC timestamp storage |
+| M-1 | MEDIUM | Card number generation used `random.choices` (not cryptographically secure) |
+| M-2 | MEDIUM | Account deletion accepted non-zero balance |
+| M-3 | MEDIUM | `ip_address` parameter never passed to `log_action()` despite the field existing |
+| M-4 | MEDIUM | `EXPIRED` card status could be set manually via `PATCH /cards/{id}/status` |
+| L-1 | LOW | Health `/health/ready` flagged as not probing DB — investigation showed it already does (`SELECT 1`) — false positive |
+| L-2 | LOW | Card numbers not Luhn-valid — deferred (out of scope for this project) |
+
+### Fixes applied
+
+#### Security fixes (C-1, C-2)
+- `auth/service.py` — `logout()` now takes `user_id` and adds `RefreshToken.user_id == user_id` filter
+- `auth/service.py` — `refresh_access_token()` eagerly loads user via `selectinload(RefreshToken.user)` and checks `user.is_active` and `user.deleted_at is None`
+- `auth/service.py` — `login()` now returns `tuple[str, str, str]` so the router can pass `user_id` to `log_action` without a second DB call
+
+#### Audit trail (H-1, M-3)
+- `auth/router.py` — `log_action()` added to `register`, `login`, `logout` with `ip_address` from `request.client`
+- `users/router.py` — `log_action()` added to `update_me` and `delete_me` with `ip_address`
+- `accounts/router.py` — `ip_address` added to existing `log_action` calls
+- `cards/router.py` — `ip_address` added to existing `log_action` calls
+- `transfers/router.py` — `ip_address` added to existing `log_action` call
+
+#### Card hardening (H-2, M-1, M-4)
+- `cards/service.py` — expiry now uses `datetime.now(timezone.utc).date()` instead of `date.today()`
+- `cards/service.py` — card number generation uses `secrets.randbelow(10)` instead of `random.choices`
+- `cards/service.py` — `update_card_status()` raises `InvalidCardStatusError` if new status is `EXPIRED` or card is already `EXPIRED`
+- `cards/schemas.py` — `UpdateCardStatusRequest` adds a `field_validator` rejecting `EXPIRED` at the Pydantic layer (defence-in-depth)
+
+#### Business logic (M-2)
+- `accounts/service.py` — `soft_delete_account()` raises `AccountHasFundsError` (422) if `balance != Decimal("0")`
+
+#### New shared types + validation
+- `app/common/types.py` — `UUIDPath` annotated type (`Annotated[str, Path(pattern=UUID_REGEX)]`) applied to all path parameters across all routers; malformed IDs return 422 before any DB call
+- `app/common/exceptions.py` — added `AccountHasFundsError` and `InvalidCardStatusError`
+- `statements/router.py` — added `end_date >= start_date` guard (422 if violated)
+- `transactions/router.py` — added same date range guard for the optional filter params
+
+### Test updates
+- 5 test locations updated from invalid path param strings (`some-id`, `nonexistent-id`, `nonexistent`) to valid UUID format (`00000000-0000-0000-0000-000000000000`) — FastAPI validates path params before auth, so tests that sent malformed IDs would receive 422 instead of the expected 403/404
+- 8 "requires_auth" tests updated from `403` to `401` — Starlette 0.52.x `HTTPBearer` now correctly returns 401 (unauthenticated) instead of 403 for missing Bearer tokens
+
+### Final result
+**90/90 tests passing** (same count, all hardening changes covered by existing test suite)
+
+---
+
 ## Areas Where Manual Intervention Was Necessary
 
 - Dependency audit (catching missing `python-dateutil`)
