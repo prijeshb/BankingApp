@@ -1,0 +1,35 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment & secrets
+.env
+.env.*
+
+# Database (mounted as volume at runtime)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Node — exclude installed modules and prior builds (rebuilt inside Docker)
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Git & docs
+.git/
+.gitignore
+*.md
+
+# Dev/test files
+tests/
+alembic/
+pytest.ini
