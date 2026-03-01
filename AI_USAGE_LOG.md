@@ -358,3 +358,99 @@ After the frontend went live, end-to-end testing surfaced gaps and bugs in the b
 ### What was NOT changed
 - All 90 backend tests still pass (no test changes needed — new endpoints covered by manual testing; withdrawal endpoint follows same pattern as deposit which already has a test)
 - No DB migration files (schema change done via direct ALTER TABLE during dev)
+
+---
+
+## Session 8 — Frontend Bug Fixes & Account Number Transfers
+
+### Context
+After merging PR #1 (UI/nav improvements), end-to-end browser testing uncovered several bugs across the React frontend. All fixes were committed to `feat/ui-nav-improvements` and merged via PR #1.
+
+### Bugs fixed
+
+| Bug | Root cause | Fix |
+|---|---|---|
+| "Rendered fewer hooks than expected" crash on account click | `Layout.jsx` line 19: `useMatch('/accounts/:id') \|\| useMatch('/accounts/:id/*')` — the `\|\|` operator short-circuits, so the second `useMatch` hook is conditionally called, violating React's rules of hooks | Called both hooks unconditionally into separate variables, then combined results with `\|\|` |
+| Registration shows generic "Invalid request data" | `Register.jsx` extracted `err.response?.data?.error?.message` which is the generic wrapper message | Changed to extract and join `error.details[].message` for field-specific validation errors |
+| Transactions table doesn't refresh after deposit/withdrawal | `TransactionsTab` only re-fetched when `accountId` changed; deposit/withdraw didn't trigger a re-render | Added `refreshKey` counter state to `AccountDetail`; incremented on deposit/withdrawal success; passed as prop to `TransactionsTab` and added to its `useCallback` dependencies |
+| Transfer rejects valid account numbers (e.g. ACC9739133631) | `TransferForm` validated input against UUID regex, rejecting human-readable account numbers | Added backend `GET /accounts/lookup/{account_number}` endpoint; frontend resolves account numbers to UUIDs before submitting transfer |
+| Badge prop mismatch in StatementPage | `<Badge status={...}>` used instead of `<Badge value={...}>` | Changed to correct prop name `value` |
+| CREDIT transactions not classified as credits in statement view | `isCredit` check in `StatementPage.jsx` only matched `TRANSFER_IN` and `DEPOSIT` | Added `CREDIT` to the classification check |
+
+### New backend endpoint
+
+| File | Change |
+|---|---|
+| `app/accounts/router.py` | `GET /lookup/{account_number}` — resolves human-readable account number to full account object; placed before `/{account_id}` route to avoid UUID path param conflict |
+| `app/accounts/service.py` | `get_account_by_number()` — queries by `Account.account_number` with soft-delete filter |
+| `frontend/src/api/accounts.js` | `lookupByNumber(accountNumber)` — calls the new endpoint |
+
+### UI improvements
+
+| Change | Details |
+|---|---|
+| Card limit info notice | Always-visible blue info box with icon: "One debit and one virtual card maximum per account." — `inline-flex` for text wrapping |
+| Transfer pre-selection | `TransferForm` reads `location.state.fromAccountId` to pre-select source account when navigating from Dashboard |
+| Account number placeholder | Changed to `e.g. ACC9739133631` to guide users toward human-readable format |
+
+### Files changed (8 files in PR #1)
+- `app/accounts/router.py` — lookup endpoint
+- `app/accounts/service.py` — `get_account_by_number()`
+- `frontend/src/api/accounts.js` — `lookupByNumber()` API call
+- `frontend/src/components/Layout.jsx` — hooks violation fix
+- `frontend/src/pages/AccountDetail.jsx` — refresh key, card limit notice
+- `frontend/src/pages/Register.jsx` — validation error extraction
+- `frontend/src/pages/StatementPage.jsx` — Badge prop, CREDIT classification
+- `frontend/src/pages/TransferForm.jsx` — account number resolution, pre-selection
+
+### Manual interventions
+- All bugs discovered through manual browser testing
+- Backend process restart required (`taskkill`) — old process didn't have new lookup endpoint code
+- Port conflicts resolved (8000 occupied, Vite fell back to 5175)
+- PR created manually (gh CLI not installed)
+
+---
+
+## Session 9 — Documentation & Setup Scripts
+
+### Context
+Project needed a README, detailed project docs, and automated setup scripts for onboarding.
+
+### What AI produced
+
+#### README.md
+- Three setup options: quick-start script, manual Docker, and local development (no Docker)
+- Test commands with coverage and filtering examples
+- Link to detailed docs
+
+#### docs/project-info.md
+- Full project directory tree with descriptions
+- Complete API endpoint table (25 endpoints, auth requirements)
+- Architecture overview (backend + frontend)
+- Environment variables reference (backend config + frontend feature flags)
+
+#### Setup scripts
+| File | Platform | What it does |
+|---|---|---|
+| `setup.sh` | Linux / macOS / Git Bash | Checks Docker, creates `.env` with auto-generated JWT secret, runs `docker compose up --build -d` |
+| `setup.bat` | Windows (Command Prompt) | Same flow; uses `setlocal enabledelayedexpansion` for correct variable expansion in batch |
+
+### Verification
+
+All three setup options tested end-to-end:
+
+| Option | Tests performed | Result |
+|---|---|---|
+| Setup scripts | `bash -n setup.sh` syntax check; bat delayed expansion fix verified | Pass |
+| Docker | `docker compose build` (multi-stage: Node 20 + Python 3.12); `docker compose up -d`; health endpoint, `/docs`, SPA all respond | Pass |
+| Local dev | `pip install -r requirements.txt`; `uvicorn` starts, health responds; `npm install` + `npm run build` (129 modules, 2.5 s) | Pass |
+
+### Bug fixed during testing
+- `setup.bat` used `%SECRET%` inside a parenthesized `if` block where the variable was set — Windows CMD doesn't expand `%vars%` inside the same block. Fixed with `setlocal enabledelayedexpansion` and `!SECRET!` syntax.
+
+### Files added/changed
+- `README.md` — new (setup, testing, docs link)
+- `docs/project-info.md` — new (structure, API, architecture, env vars)
+- `setup.sh` — new (Linux/macOS/Git Bash quick start)
+- `setup.bat` — new (Windows quick start)
+
