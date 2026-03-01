@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import * as accountsApi from '../api/accounts'
 import * as transfersApi from '../api/transfers'
@@ -10,7 +10,12 @@ import ErrorAlert from '../components/ErrorAlert'
 
 export default function TransferForm() {
   const navigate  = useNavigate()
+  const location  = useLocation()
   const { addToast } = useToast()
+
+  // If navigated here from an account page, we have a back target
+  const fromAccountId = location.state?.fromAccountId
+  const backTo = fromAccountId ? `/accounts/${fromAccountId}` : '/'
 
   const [accounts,       setAccounts]       = useState([])
   const [loadingAccts,   setLoadingAccts]   = useState(true)
@@ -95,14 +100,14 @@ export default function TransferForm() {
       }
       await transfersApi.createTransfer(payload)
       addToast(`Transfer of $${parseFloat(form.amount).toFixed(2)} completed`, 'success')
-      navigate('/')
+      navigate(backTo)
     } catch (err) {
       const status = err.response?.status
       const detail = err.response?.data?.detail
 
       if (status === 409) {
         addToast('This transfer was already processed', 'info')
-        navigate('/')
+        navigate(backTo)
         return
       }
 
@@ -327,10 +332,10 @@ export default function TransferForm() {
             {submitting ? 'Sending…' : 'Send Transfer'}
           </button>
           <Link
-            to="/"
+            to={backTo}
             className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
           >
-            Cancel
+            {fromAccountId ? '← Back' : 'Cancel'}
           </Link>
         </div>
       </form>

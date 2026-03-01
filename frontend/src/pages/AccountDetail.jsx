@@ -109,14 +109,6 @@ export default function AccountDetail() {
               Transfer
             </Link>
           )}
-          <FeatureGate flag="STATEMENTS">
-            <Link
-              to={`/accounts/${id}/statements`}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              Statement
-            </Link>
-          </FeatureGate>
         </div>
       </div>
 
@@ -461,12 +453,13 @@ function TransactionsTab({ accountId }) {
   const [loading,   setLoading]   = useState(true)
   const [page,      setPage]      = useState(1)
   const [total,     setTotal]     = useState(0)
-  const [startDate, setStartDate] = useState('')
-  const [endDate,   setEndDate]   = useState('')
-  const [dateErr,   setDateErr]   = useState('')
   const { addToast } = useToast()
   const LIMIT = 20
-  const today = new Date().toISOString().slice(0, 10)
+  const today      = new Date().toISOString().slice(0, 10)
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const [startDate, setStartDate] = useState(oneWeekAgo)
+  const [endDate,   setEndDate]   = useState(today)
+  const [dateErr,   setDateErr]   = useState('')
 
   const load = useCallback(async (pg = 1) => {
     setDateErr('')
@@ -535,13 +528,13 @@ function TransactionsTab({ accountId }) {
           >
             Filter
           </button>
-          {(startDate || endDate) && (
+          {(startDate !== oneWeekAgo || endDate !== today) && (
             <button
               type="button"
-              onClick={() => { setStartDate(''); setEndDate(''); setDateErr('') }}
+              onClick={() => { setStartDate(oneWeekAgo); setEndDate(today); setDateErr('') }}
               className="rounded-md px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400"
             >
-              Clear
+              Reset
             </button>
           )}
         </div>

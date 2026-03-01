@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { FEATURES } from '../config/features'
@@ -14,6 +14,10 @@ export default function Layout() {
   const { addToast }     = useToast()
   const navigate         = useNavigate()
   const [open, setOpen]  = useState(false)
+
+  // Detect current account ID so Statement link can appear in sidebar
+  const accountMatch = useMatch('/accounts/:id') || useMatch('/accounts/:id/*')
+  const currentAccountId = accountMatch?.params?.id
 
   const handleLogout = async () => {
     await logout()
@@ -106,6 +110,17 @@ export default function Layout() {
               <li>
                 <NavLink to="/transfer" className={navLinkClass} onClick={() => setOpen(false)}>
                   💸 New Transfer
+                </NavLink>
+              </li>
+            )}
+            {FEATURES.STATEMENTS && currentAccountId && (
+              <li>
+                <NavLink
+                  to={`/accounts/${currentAccountId}/statements`}
+                  className={navLinkClass}
+                  onClick={() => setOpen(false)}
+                >
+                  📄 Statement
                 </NavLink>
               </li>
             )}

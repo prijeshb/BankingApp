@@ -48,9 +48,9 @@ export default function StatementPage() {
   const [loadingAcct,setLoadingAcct]= useState(true)
 
   const today = new Date().toISOString().slice(0, 10)
-  const firstOfMonth = today.slice(0, 8) + '01'
+  const oneMonthAgo = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 10)
 
-  const [startDate, setStartDate] = useState(firstOfMonth)
+  const [startDate, setStartDate] = useState(oneMonthAgo)
   const [endDate,   setEndDate]   = useState(today)
   const [dateError, setDateError] = useState(null)
 
