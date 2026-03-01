@@ -49,6 +49,19 @@ async def list_accounts(
     )
 
 
+@router.get("/lookup/{account_number}", response_model=AccountResponse)
+async def lookup_by_number(
+    account_number: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    account = await service.get_account_by_number(db, account_number)
+    if not account:
+        from app.common.exceptions import ResourceNotFoundError
+        raise ResourceNotFoundError("Account", account_number)
+    return AccountResponse.model_validate(account)
+
+
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(
     account_id: UUIDPath,

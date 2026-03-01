@@ -33,6 +33,7 @@ export default function AccountDetail() {
   const [tab,          setTab]          = useState(TAB_TRANSACTIONS)
   const [showDeposit,   setShowDeposit]   = useState(false)
   const [showWithdraw,  setShowWithdraw]  = useState(false)
+  const [refreshKey,    setRefreshKey]    = useState(0)
 
   const loadAccount = useCallback(async () => {
     try {
@@ -109,14 +110,6 @@ export default function AccountDetail() {
               Transfer
             </Link>
           )}
-          <FeatureGate flag="STATEMENTS">
-            <Link
-              to={`/accounts/${id}/statements`}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              Statement
-            </Link>
-          </FeatureGate>
         </div>
       </div>
 
@@ -125,7 +118,7 @@ export default function AccountDetail() {
         <DepositModal
           account={account}
           onClose={() => setShowDeposit(false)}
-          onSuccess={() => { setShowDeposit(false); loadAccount() }}
+          onSuccess={() => { setShowDeposit(false); loadAccount(); setRefreshKey(k => k + 1) }}
         />
       )}
 
@@ -134,7 +127,7 @@ export default function AccountDetail() {
         <WithdrawalModal
           account={account}
           onClose={() => setShowWithdraw(false)}
-          onSuccess={() => { setShowWithdraw(false); loadAccount() }}
+          onSuccess={() => { setShowWithdraw(false); loadAccount(); setRefreshKey(k => k + 1) }}
         />
       )}
 
@@ -164,7 +157,7 @@ export default function AccountDetail() {
 
       {/* Tab panels */}
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === TAB_TRANSACTIONS && <TransactionsTab accountId={id} />}
+        {tab === TAB_TRANSACTIONS && <TransactionsTab accountId={id} refreshKey={refreshKey} />}
         <FeatureGate flag="CARDS">
           {tab === TAB_CARDS && <CardsTab account={account} onRefresh={loadAccount} />}
         </FeatureGate>
@@ -456,17 +449,18 @@ function WithdrawalModal({ account, onClose, onSuccess }) {
 
 // ── Transactions tab ──────────────────────────────────────────────────────────
 
-function TransactionsTab({ accountId }) {
+function TransactionsTab({ accountId, refreshKey }) {
   const [txns,      setTxns]      = useState([])
   const [loading,   setLoading]   = useState(true)
   const [page,      setPage]      = useState(1)
   const [total,     setTotal]     = useState(0)
-  const [startDate, setStartDate] = useState('')
-  const [endDate,   setEndDate]   = useState('')
-  const [dateErr,   setDateErr]   = useState('')
   const { addToast } = useToast()
   const LIMIT = 20
-  const today = new Date().toISOString().slice(0, 10)
+  const today      = new Date().toISOString().slice(0, 10)
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const [startDate, setStartDate] = useState(oneWeekAgo)
+  const [endDate,   setEndDate]   = useState(today)
+  const [dateErr,   setDateErr]   = useState('')
 
   const load = useCallback(async (pg = 1) => {
     setDateErr('')
@@ -485,7 +479,7 @@ function TransactionsTab({ accountId }) {
     } finally {
       setLoading(false)
     }
-  }, [accountId, startDate, endDate, addToast])
+  }, [accountId, startDate, endDate, addToast, refreshKey])
 
   useEffect(() => { load(1) }, [load])
 
@@ -535,13 +529,13 @@ function TransactionsTab({ accountId }) {
           >
             Filter
           </button>
-          {(startDate || endDate) && (
+          {(startDate !== oneWeekAgo || endDate !== today) && (
             <button
               type="button"
-              onClick={() => { setStartDate(''); setEndDate(''); setDateErr('') }}
+              onClick={() => { setStartDate(oneWeekAgo); setEndDate(today); setDateErr('') }}
               className="rounded-md px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400"
             >
-              Clear
+              Reset
             </button>
           )}
         </div>
@@ -710,8 +704,14 @@ function CardsTab({ account, onRefresh }) {
     <div className="space-y-5">
       {/* Generate card controls */}
       {canIssueCard(account) && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
           <p className="text-sm font-medium text-gray-700">Generate new card</p>
+          <div className="inline-flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
+            <svg className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+            </svg>
+            <p className="text-xs text-blue-700">One debit and one virtual card maximum per account.</p>
+          </div>
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -736,9 +736,6 @@ function CardsTab({ account, onRefresh }) {
               </button>
             </FeatureGate>
           </div>
-          {hasDebit && hasVirtual && (
-            <p className="text-xs text-gray-400">One debit and one virtual card maximum per account.</p>
-          )}
         </div>
       )}
 

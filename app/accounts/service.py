@@ -75,6 +75,17 @@ async def get_account_by_id(db: AsyncSession, account_id: str) -> Account | None
     return result.scalar_one_or_none()
 
 
+async def get_account_by_number(db: AsyncSession, account_number: str) -> Account | None:
+    """Look up an active account by its human-readable account number."""
+    result = await db.execute(
+        select(Account).where(
+            Account.account_number == account_number,
+            Account.deleted_at.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_accounts(db: AsyncSession, owner_id: str) -> list[Account]:
     result = await db.execute(
         select(Account).where(

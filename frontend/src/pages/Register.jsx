@@ -31,10 +31,11 @@ export default function Register() {
       addToast('Account created — please sign in', 'success')
       navigate('/login')
     } catch (err) {
-      const msg =
-        err.response?.data?.error?.message ||
-        err.response?.data?.detail?.[0]?.msg ||
-        'Registration failed — please try again'
+      const errData = err.response?.data?.error
+      const details = errData?.details
+      const msg = details?.length
+        ? details.map(d => d.message).join('. ')
+        : errData?.message || 'Registration failed — please try again'
       setError(msg)
     } finally {
       setLoading(false)

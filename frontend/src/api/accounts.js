@@ -9,3 +9,5 @@ export const deposit       = (id, amount, description) =>
   client.post(`/accounts/${id}/deposit`, { amount, description })
 export const withdraw      = (id, amount, description) =>
   client.post(`/accounts/${id}/withdraw`, { amount, description })
+export const lookupByNumber = (accountNumber) =>
+  client.get(`/accounts/lookup/${accountNumber}`)
