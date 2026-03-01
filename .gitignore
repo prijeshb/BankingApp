@@ -29,6 +29,6 @@ data/
 .idea/
 
 # Node / Frontend
-frontend/node_modules/
+node_modules/
 frontend/dist/
 frontend/.env.local
