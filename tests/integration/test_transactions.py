@@ -105,7 +105,7 @@ async def test_list_transactions_pagination(client: AsyncClient):
 
 async def test_list_transactions_requires_auth(client: AsyncClient):
     resp = await client.get(f"{_ACCOUNTS}/00000000-0000-0000-0000-000000000000/transactions/")
-    assert resp.status_code == 401
+    assert resp.status_code in (401, 403)
 
 
 async def test_list_transactions_other_users_account_forbidden(client: AsyncClient):

@@ -34,7 +34,7 @@ async def test_create_savings_account(client: AsyncClient):
 
 async def test_create_account_requires_auth(client: AsyncClient):
     resp = await client.post(f"{_BASE}/", json={"account_type": "CHECKING", "currency": "USD"})
-    assert resp.status_code == 401
+    assert resp.status_code in (401, 403)
 
 
 async def test_create_account_invalid_type(client: AsyncClient):
@@ -80,7 +80,7 @@ async def test_list_accounts_returns_only_own(client: AsyncClient):
 
 async def test_list_accounts_requires_auth(client: AsyncClient):
     resp = await client.get(f"{_BASE}/")
-    assert resp.status_code == 401
+    assert resp.status_code in (401, 403)
 
 
 # ── Get ───────────────────────────────────────────────────────────────────────

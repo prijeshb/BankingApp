@@ -10,12 +10,13 @@ Features and improvements that can be added in subsequent phases. All are compat
 |---|---|---|
 | Rate limiting | Per-IP and per-user request throttling using `slowapi` or similar | Small |
 | Login throttling | Exponential backoff after failed authentication attempts | Small |
-| Password complexity | Require uppercase, numeric, and special characters | Small |
 | Security headers | Add `X-Frame-Options`, `X-Content-Type-Options`, `Strict-Transport-Security`, `Content-Security-Policy` | Small |
 | CORS lockdown | Remove wildcard default; require explicit origin configuration | Small |
 | OTP / 2FA | TOTP (Google Authenticator) or email code for card reveal, large transfers, and account deletion | Medium |
 | Password reset | Forgot-password flow with time-limited email reset link (requires SendGrid, SES, or similar) | Medium |
 | Session management UI | List active sessions (device, IP, last seen); allow remote logout of individual sessions | Medium |
+
+> **Already implemented:** Password complexity (uppercase + lowercase + digit + special char), Swagger/ReDoc docs disabled in production, UUID validation on all IDs, phone number pattern validation, future date rejection on date of birth, input length constraints on all text fields.
 
 ---
 
@@ -69,7 +70,7 @@ Features and improvements that can be added in subsequent phases. All are compat
 | Feature | Description | Effort |
 |---|---|---|
 | Alembic migration files | Generate proper `alembic revision --autogenerate` migrations to replace manual ALTER TABLE | Small |
-| CI/CD pipeline | GitHub Actions: lint, test (90 cases), build frontend, Docker image push on merge to main | Medium |
+| CI/CD pipeline | GitHub Actions: lint, test (129 cases), build frontend, Docker image push on merge to main | Medium |
 | PostgreSQL migration | Replace SQLite for concurrent write support; Alembic migrations are already set up | Medium |
 | Production deployment | Nginx reverse proxy + Gunicorn/Uvicorn workers + static frontend from `dist/` | Medium |
 | Database encryption at rest | SQLCipher for SQLite or PostgreSQL with TDE | Medium |

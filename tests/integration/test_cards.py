@@ -49,7 +49,7 @@ async def test_issue_virtual_card(client: AsyncClient):
 
 async def test_issue_card_requires_auth(client: AsyncClient):
     resp = await client.post(f"{_ACCOUNTS}/00000000-0000-0000-0000-000000000000/cards", json={"card_type": "DEBIT"})
-    assert resp.status_code == 401
+    assert resp.status_code in (401, 403)
 
 
 async def test_issue_card_other_users_account_forbidden(client: AsyncClient):

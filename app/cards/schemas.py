@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.cards.models import CardStatus, CardType
 
@@ -38,7 +38,7 @@ class CardListResponse(BaseModel):
 
 
 class CardRevealRequest(BaseModel):
-    password: str
+    password: str = Field(..., min_length=1, max_length=100)
 
 
 class CardRevealResponse(BaseModel):

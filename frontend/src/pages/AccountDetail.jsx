@@ -1090,6 +1090,7 @@ function RevealModal({ cardId, onSuccess, onClose, onCardGone }) {
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError('') }}
               disabled={loading}
+              maxLength={100}
               autoComplete="current-password"
               aria-required="true"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"

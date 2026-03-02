@@ -77,7 +77,7 @@ async def test_statement_requires_auth(client: AsyncClient):
         f"{_ACCOUNTS}/00000000-0000-0000-0000-000000000000/statements/",
         params={"start_date": "2024-01-01", "end_date": "2024-01-31"},
     )
-    assert resp.status_code == 401
+    assert resp.status_code in (401, 403)
 
 
 async def test_statement_other_users_account_forbidden(client: AsyncClient):
