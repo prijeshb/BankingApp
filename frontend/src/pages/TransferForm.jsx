@@ -23,6 +23,7 @@ export default function TransferForm() {
   const [error,          setError]          = useState(null)
   const [fieldErrors,    setFieldErrors]    = useState({})
   const [idempotencyKey, setIdempotencyKey] = useState(uuidv4())
+  const [recipientMode,  setRecipientMode]  = useState('internal') // 'internal' | 'external'
 
   const [form, setForm] = useState({
     from_account_id: '',
@@ -43,6 +44,8 @@ export default function TransferForm() {
             : eligible[0].id
           setForm(f => ({ ...f, from_account_id: preselect }))
         }
+        // Default to external if user only has one account (nothing to pick internally)
+        if (eligible.length <= 1) setRecipientMode('external')
       })
       .catch(() => setError('Could not load your accounts.'))
       .finally(() => setLoadingAccts(false))
@@ -51,17 +54,32 @@ export default function TransferForm() {
   // ── Field helpers ──────────────────────────────────────────────────────────
   function handleChange(e) {
     const { name, value } = e.target
-    setForm(f => ({ ...f, [name]: value }))
+    setForm(f => {
+      const next = { ...f, [name]: value }
+      // If the source account changes in internal mode and it now matches the destination, clear it
+      if (name === 'from_account_id' && recipientMode === 'internal' && f.to_account_id === value) {
+        next.to_account_id = ''
+      }
+      return next
+    })
     if (fieldErrors[name]) {
       setFieldErrors(fe => ({ ...fe, [name]: null }))
     }
+  }
+
+  function switchMode(mode) {
+    setRecipientMode(mode)
+    setForm(f => ({ ...f, to_account_id: '' }))
+    setFieldErrors(fe => ({ ...fe, to_account_id: null }))
   }
 
   function validate() {
     const errs = {}
     if (!form.from_account_id) errs.from_account_id = 'Select a source account.'
     if (!form.to_account_id.trim()) {
-      errs.to_account_id = 'Recipient account number is required.'
+      errs.to_account_id = recipientMode === 'internal'
+        ? 'Select a destination account.'
+        : 'Recipient account number is required.'
     }
     if (!form.amount) {
       errs.amount = 'Amount is required.'
@@ -92,16 +110,18 @@ export default function TransferForm() {
       const recipient = form.to_account_id.trim()
       let toAccountId = recipient
 
-      // If it's not already a UUID, look it up by account number
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipient)
-      if (!isUUID) {
-        try {
-          const { data } = await accountsApi.lookupByNumber(recipient)
-          toAccountId = data.id
-        } catch {
-          setFieldErrors({ to_account_id: 'Account not found. Check the number and try again.' })
-          setSubmitting(false)
-          return
+      // Internal mode: value is already a UUID from the dropdown — skip lookup
+      if (recipientMode === 'external') {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipient)
+        if (!isUUID) {
+          try {
+            const { data } = await accountsApi.lookupByNumber(recipient)
+            toAccountId = data.id
+          } catch {
+            setFieldErrors({ to_account_id: 'Account not found. Check the number and try again.' })
+            setSubmitting(false)
+            return
+          }
         }
       }
 
@@ -117,7 +137,7 @@ export default function TransferForm() {
       navigate(backTo)
     } catch (err) {
       const status = err.response?.status
-      const detail = err.response?.data?.detail
+      const errBody = err.response?.data?.error   // backend wraps all errors here
 
       if (status === 409) {
         addToast('This transfer was already processed', 'info')
@@ -125,20 +145,28 @@ export default function TransferForm() {
         return
       }
 
-      if (status === 422 && Array.isArray(detail)) {
+      // Validation field errors — backend format: error.details[{field, message}]
+      if (status === 422 && Array.isArray(errBody?.details)) {
         const fe = {}
-        for (const item of detail) {
-          const field = item.loc?.[item.loc.length - 1]
-          if (field) fe[field] = item.msg
+        for (const item of errBody.details) {
+          const fieldName = item.field?.split('.').pop()
+          if (fieldName) fe[fieldName] = item.message
         }
-        setFieldErrors(fe)
-        return
+        if (Object.keys(fe).length > 0) {
+          setFieldErrors(fe)
+          return
+        }
       }
 
-      const msg = typeof detail === 'string' ? detail : 'Something went wrong — please try again.'
+      // Business errors — map codes to user-friendly copy
+      const FRIENDLY = {
+        INSUFFICIENT_FUNDS: "You don't have enough funds for this transfer.",
+        ACCOUNT_INACTIVE:   'One of the accounts is no longer active.',
+        NOT_FOUND:          'The destination account could not be found.',
+      }
+      const msg = FRIENDLY[errBody?.code] || errBody?.message || 'Something went wrong — please try again.'
       setError(msg)
       addToast(msg, 'error')
-      // Regenerate idempotency key so user can retry
       setIdempotencyKey(uuidv4())
     } finally {
       setSubmitting(false)
@@ -227,39 +255,90 @@ export default function TransferForm() {
 
         {/* To account */}
         <div>
-          <label
-            htmlFor="tf-to_account_id"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Recipient account number <span aria-hidden="true" className="text-red-500">*</span>
-          </label>
-          <input
-            id="tf-to_account_id"
-            name="to_account_id"
-            type="text"
-            value={form.to_account_id}
-            onChange={handleChange}
-            disabled={submitting}
-            placeholder="e.g. ACC9739133631"
-            autoComplete="off"
-            spellCheck="false"
-            aria-required="true"
-            aria-describedby={
-              fieldErrors.to_account_id ? 'tf-to_account_id-err' : 'tf-to_account_id-hint'
-            }
-            className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 ${
-              fieldErrors.to_account_id ? 'border-red-400 bg-red-50' : 'border-gray-300'
-            }`}
-          />
+          <fieldset>
+            <legend className="block text-sm font-medium text-gray-700 mb-2">
+              Send to <span aria-hidden="true" className="text-red-500">*</span>
+            </legend>
+            <div className="flex gap-5 mb-3">
+              {[
+                { value: 'internal', label: 'My accounts' },
+                { value: 'external', label: 'Someone else' },
+              ].map(({ value, label }) => (
+                <label key={value} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="recipientMode"
+                    value={value}
+                    checked={recipientMode === value}
+                    onChange={() => switchMode(value)}
+                    disabled={submitting}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {recipientMode === 'internal' ? (
+            (() => {
+              const internalAccounts = accounts.filter(a => a.id !== form.from_account_id)
+              return internalAccounts.length === 0 ? (
+                <p className="text-sm text-gray-500 py-1">
+                  You only have one account. Switch to "Someone else" to send externally.
+                </p>
+              ) : (
+                <select
+                  id="tf-to_account_id"
+                  name="to_account_id"
+                  value={form.to_account_id}
+                  onChange={handleChange}
+                  disabled={submitting}
+                  aria-required="true"
+                  aria-describedby={fieldErrors.to_account_id ? 'tf-to_account_id-err' : undefined}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400 ${
+                    fieldErrors.to_account_id ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">Select an account</option>
+                  {internalAccounts.map(acct => (
+                    <option key={acct.id} value={acct.id}>
+                      {acct.account_number} — {acct.account_type} ({acct.currency} {parseFloat(acct.balance).toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+              )
+            })()
+          ) : (
+            <input
+              id="tf-to_account_id"
+              name="to_account_id"
+              type="text"
+              value={form.to_account_id}
+              onChange={handleChange}
+              disabled={submitting}
+              placeholder="e.g. ACC9739133631"
+              autoComplete="off"
+              spellCheck="false"
+              aria-required="true"
+              aria-describedby={
+                fieldErrors.to_account_id ? 'tf-to_account_id-err' : 'tf-to_account_id-hint'
+              }
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 ${
+                fieldErrors.to_account_id ? 'border-red-400 bg-red-50' : 'border-gray-300'
+              }`}
+            />
+          )}
+
           {fieldErrors.to_account_id ? (
             <p id="tf-to_account_id-err" role="alert" className="mt-1 text-xs text-red-600">
               {fieldErrors.to_account_id}
             </p>
-          ) : (
+          ) : recipientMode === 'external' ? (
             <p id="tf-to_account_id-hint" className="mt-1 text-xs text-gray-500">
               Ask the recipient to share their account number from their dashboard.
             </p>
-          )}
+          ) : null}
         </div>
 
         {/* Amount */}

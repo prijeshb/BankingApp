@@ -1,7 +1,6 @@
 # Claude prompt system
 *.prompt.md
 .claude/
-PROMPTS.md
 
 # Python
 __pycache__/
