@@ -7,10 +7,14 @@ from pydantic import ValidationError
 from app.transactions.schemas import CreateTransferRequest
 
 
+_UUID_A = "00000000-0000-4000-8000-000000000001"
+_UUID_B = "00000000-0000-4000-8000-000000000002"
+
+
 def _valid_payload(**overrides) -> dict:
     base = {
-        "from_account_id": "account-a",
-        "to_account_id": "account-b",
+        "from_account_id": _UUID_A,
+        "to_account_id": _UUID_B,
         "amount": Decimal("100.00"),
         "idempotency_key": "key-123",
     }
@@ -20,12 +24,12 @@ def _valid_payload(**overrides) -> dict:
 def test_valid_transfer_parses():
     req = CreateTransferRequest(**_valid_payload())
     assert req.amount == Decimal("100.00")
-    assert req.from_account_id == "account-a"
+    assert req.from_account_id == _UUID_A
 
 
 def test_same_account_rejected():
     with pytest.raises(ValueError, match="must differ"):
-        CreateTransferRequest(**_valid_payload(from_account_id="x", to_account_id="x"))
+        CreateTransferRequest(**_valid_payload(from_account_id=_UUID_A, to_account_id=_UUID_A))
 
 
 def test_zero_amount_rejected():

@@ -1,7 +1,7 @@
 # AI Usage Log — Banking REST Service
 
 ## Tools Used
-- **Claude Code** (claude-sonnet-4-6) — primary development tool for all phases
+- **Claude Code** (claude-sonnet-4-6, claude-opus-4-6) — primary development tool for all phases
 
 ---
 
@@ -509,4 +509,112 @@ Full audit of all logging calls across the codebase:
 - `docs/roadmap.md` — new
 - `app/common/exceptions.py` — sanitized unhandled exception logging
 - `README.md` — updated docs section with links to security and roadmap
+
+---
+
+## Session 11 — OWASP Audit, Security Tests & Hardening
+
+### Prompt Used
+> "Check all apis wherever required example on update doesn't update deleted account. Also, check broken access control, injection, server side request forgery, XSS, input sanitization. refer owasp for above items and other"
+
+### Context
+Full OWASP Top 10 audit of the backend API, followed by implementing fixes and writing comprehensive security edge-case tests.
+
+### OWASP audit findings
+
+| OWASP Category | Status | Details |
+|---|---|---|
+| A01 Broken Access Control | MITIGATED | Ownership checks on all resource endpoints; soft-deleted resources excluded from all queries |
+| A02 Cryptographic Failures | MITIGATED | bcrypt passwords, Fernet card encryption, weak dev secret documented |
+| A03 Injection | MITIGATED | All queries via SQLAlchemy ORM (parameterised), Pydantic validation on all inputs |
+| A04 Insecure Design | MITIGATED | Idempotency keys, atomic transfers, append-only ledger |
+| A05 Security Misconfiguration | FIXED | Swagger/ReDoc docs were always exposed — now `docs_url="/docs" if settings.DEBUG else None` |
+| A06 Vulnerable Components | MITIGATED | Dependencies pinned |
+| A07 Auth Failures | FIXED | Password complexity added (uppercase + lowercase + digit + special char) |
+| A08 Data Integrity | MITIGATED | Idempotency guard on transfers |
+| A09 Logging Failures | MITIGATED | structlog with correlation IDs; no sensitive data in logs |
+| A10 SSRF | MITIGATED | No outbound HTTP calls |
+
+### Fixes applied
+
+| Fix | File | Details |
+|---|---|---|
+| Password complexity | `app/auth/schemas.py` | `@field_validator("password")` requiring uppercase, lowercase, digit, special character |
+| Docs disabled in prod | `app/main.py` | `docs_url="/docs" if settings.DEBUG else None`, same for `redoc_url` |
+
+### Security tests added (30 new tests)
+
+New file `tests/integration/test_security.py` covering:
+
+| Category | Tests |
+|---|---|
+| Password complexity | 5 (no uppercase, no lowercase, no digit, no special, strong accepted) |
+| Deleted user operations | 2 (login blocked, token rejected after soft-delete) |
+| Deleted account operations | 4 (GET 404, transfer from/to deleted, issue card on deleted) |
+| Inactive account operations | 1 (transfer from inactive rejected) |
+| Cross-user access control | 7 (view account, list transactions, delete account, issue card, view cards, view transfer) |
+| SQL injection payloads | 4 (email, login, full_name, account ID path) |
+| XSS payloads | 2 (full_name, transfer description — stored literally) |
+| Boundary inputs | 3 (oversized name, oversized password, duplicate email) |
+| Account edge cases | 2 (delete with balance, nonexistent account) |
+
+### Other test fixes
+- Added `tests/__init__.py` and `tests/integration/__init__.py` for module resolution
+- Fixed 401/403 assertion in 8 existing no-auth tests (Starlette HTTPBearer behaviour)
+
+### Final result
+**129/129 tests passing** (was 99, now 129 with 30 new security tests)
+
+### Files added/changed
+- `app/auth/schemas.py` — password complexity validator
+- `app/main.py` — conditional docs URLs
+- `tests/integration/test_security.py` — new (30 security tests)
+- `tests/__init__.py` — new (package marker)
+- `tests/integration/__init__.py` — new (package marker)
+
+---
+
+## Session 12 — Input Validation Hardening & Frontend Sync
+
+### Prompt Used
+> "Add input validation to check if it is certain type like id, date, other appropriate wherever required"
+> "update frontend with current backend changes if required"
+
+### Context
+Comprehensive audit of all Pydantic schemas and router parameters to add type-appropriate validation (UUID format, date constraints, phone patterns, field length limits). Then synced the React frontend to match.
+
+### Backend validation changes
+
+| File | Field(s) | Validation added |
+|---|---|---|
+| `app/transactions/schemas.py` | `from_account_id`, `to_account_id` | UUID format regex + `min_length=36, max_length=36` |
+| `app/transactions/schemas.py` | `amount` | `Field(gt=0)` replacing `model_post_init` check |
+| `app/transactions/schemas.py` | `idempotency_key` | `min_length=1, max_length=255` |
+| `app/transactions/schemas.py` | `description` | `max_length=255` |
+| `app/users/schemas.py` | `phone_number` | Pattern `^\+?[0-9\s\-]{7,20}$` |
+| `app/users/schemas.py` | `date_of_birth` | `@field_validator` rejecting future dates |
+| `app/cards/schemas.py` | `CardRevealRequest.password` | `min_length=1, max_length=100` |
+
+### Frontend changes
+
+| File | Change |
+|---|---|
+| `frontend/src/pages/Register.jsx` | Password complexity checklist (5 rules shown inline as user types); blocks submit until all met; `maxLength={100}` |
+| `frontend/src/pages/AccountDetail.jsx` | Card reveal password `maxLength={100}` |
+
+### Test updates
+- `tests/unit/test_transfer_validation.py` — updated to use valid UUIDs (`00000000-0000-4000-8000-00000000000X`) instead of plain strings
+- `tests/integration/test_transfers.py` — nonexistent account test uses valid UUID format
+
+### Final result
+**129/129 tests passing**, frontend builds successfully
+
+### Files changed
+- `app/transactions/schemas.py` — UUID validation, Field constraints
+- `app/users/schemas.py` — phone pattern, DOB future-date check
+- `app/cards/schemas.py` — password length constraints
+- `frontend/src/pages/Register.jsx` — password complexity UI
+- `frontend/src/pages/AccountDetail.jsx` — reveal password maxLength
+- `tests/unit/test_transfer_validation.py` — UUID test data
+- `tests/integration/test_transfers.py` — UUID test data
 

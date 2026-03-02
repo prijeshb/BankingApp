@@ -6,9 +6,17 @@ import ErrorAlert   from '../components/ErrorAlert'
 import Spinner      from '../components/Spinner'
 
 const FIELDS = [
-  { id: 'full_name', label: 'Full name',              type: 'text',     ac: 'name' },
-  { id: 'email',     label: 'Email',                   type: 'email',    ac: 'email' },
-  { id: 'password',  label: 'Password (min 8 chars)',  type: 'password', ac: 'new-password' },
+  { id: 'full_name', label: 'Full name',   type: 'text',     ac: 'name' },
+  { id: 'email',     label: 'Email',        type: 'email',    ac: 'email' },
+  { id: 'password',  label: 'Password',     type: 'password', ac: 'new-password' },
+]
+
+const PW_RULES = [
+  { test: (v) => v.length >= 8,        label: 'At least 8 characters' },
+  { test: (v) => /[A-Z]/.test(v),      label: 'One uppercase letter' },
+  { test: (v) => /[a-z]/.test(v),      label: 'One lowercase letter' },
+  { test: (v) => /\d/.test(v),         label: 'One digit' },
+  { test: (v) => /[^A-Za-z0-9]/.test(v), label: 'One special character' },
 ]
 
 export default function Register() {
@@ -22,9 +30,17 @@ export default function Register() {
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
+  const passwordValid = PW_RULES.every((r) => r.test(form.password))
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    if (!passwordValid) {
+      setError('Please fix the password requirements below.')
+      return
+    }
+
     setLoading(true)
     try {
       await register(form.email, form.password, form.full_name)
@@ -79,8 +95,29 @@ export default function Register() {
                 required
                 aria-required="true"
                 autoComplete={ac}
+                maxLength={id === 'password' ? 100 : undefined}
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+
+              {/* Password strength checklist */}
+              {id === 'password' && form.password.length > 0 && (
+                <ul className="mt-2 space-y-0.5" aria-label="Password requirements">
+                  {PW_RULES.map(({ test, label: ruleLabel }) => {
+                    const met = test(form.password)
+                    return (
+                      <li
+                        key={ruleLabel}
+                        className={`text-xs flex items-center gap-1.5 ${
+                          met ? 'text-green-600' : 'text-gray-400'
+                        }`}
+                      >
+                        <span aria-hidden="true">{met ? '✓' : '○'}</span>
+                        <span>{ruleLabel}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
           ))}
 

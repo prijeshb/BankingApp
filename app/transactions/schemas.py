@@ -1,10 +1,15 @@
+import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from app.transactions.models import TransactionStatus, TransactionType, TransferStatus
+
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 
 class TransactionResponse(BaseModel):
@@ -40,16 +45,19 @@ class TransferResponse(BaseModel):
 
 
 class CreateTransferRequest(BaseModel):
-    from_account_id: str
-    to_account_id: str
-    amount: Decimal
-    idempotency_key: str
-    description: Optional[str] = None
+    from_account_id: str = Field(..., min_length=36, max_length=36)
+    to_account_id: str = Field(..., min_length=36, max_length=36)
+    amount: Decimal = Field(..., gt=0)
+    idempotency_key: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = Field(None, max_length=255)
 
-    model_config = {"from_attributes": True}
+    @field_validator("from_account_id", "to_account_id")
+    @classmethod
+    def validate_uuid(cls, v: str) -> str:
+        if not _UUID_RE.match(v):
+            raise ValueError("Must be a valid UUID")
+        return v
 
     def model_post_init(self, __context) -> None:
-        if self.amount <= Decimal("0"):
-            raise ValueError("amount must be positive")
         if self.from_account_id == self.to_account_id:
             raise ValueError("from_account_id and to_account_id must differ")
