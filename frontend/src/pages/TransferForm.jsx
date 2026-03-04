@@ -140,6 +140,14 @@ export default function TransferForm() {
       const errBody = err.response?.data?.error   // backend wraps all errors here
 
       if (status === 409) {
+        if (errBody?.code === 'CONCURRENT_MODIFICATION') {
+          const msg = 'The account was updated by another request — please try again.'
+          setError(msg)
+          addToast(msg, 'warning')
+          setIdempotencyKey(uuidv4())
+          return
+        }
+        // DUPLICATE_IDEMPOTENCY_KEY — transfer already processed
         addToast('This transfer was already processed', 'info')
         navigate(backTo)
         return
