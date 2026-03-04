@@ -69,6 +69,15 @@ class AccountHasFundsError(BankingException):
         )
 
 
+class OptimisticLockError(BankingException):
+    def __init__(self):
+        super().__init__(
+            message="Account was modified by another request. Please retry.",
+            status_code=status.HTTP_409_CONFLICT,
+            code="CONCURRENT_MODIFICATION",
+        )
+
+
 class InvalidCardStatusError(BankingException):
     def __init__(self, reason: str):
         super().__init__(

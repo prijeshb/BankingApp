@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.config import settings
 
@@ -35,10 +36,15 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    from app.common.exceptions import OptimisticLockError
+
     async with AsyncSessionLocal() as session:
         try:
             yield session
             await session.commit()
+        except StaleDataError:
+            await session.rollback()
+            raise OptimisticLockError()
         except Exception:
             await session.rollback()
             raise

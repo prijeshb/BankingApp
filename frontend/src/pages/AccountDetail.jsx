@@ -196,7 +196,10 @@ function DepositModal({ account, onClose, onSuccess }) {
       addToast(`Deposited ${account.currency} ${parseFloat(amount).toFixed(2)}`, 'success')
       onSuccess()
     } catch (err) {
-      const msg = err.response?.data?.error?.message || 'Deposit failed — please try again.'
+      const code = err.response?.data?.error?.code
+      const msg = code === 'CONCURRENT_MODIFICATION'
+        ? 'The account was updated by another request — please try again.'
+        : err.response?.data?.error?.message || 'Deposit failed — please try again.'
       setError(msg)
       addToast(msg, 'error')
     } finally {
@@ -339,6 +342,8 @@ function WithdrawalModal({ account, onClose, onSuccess }) {
       const code = err.response?.data?.error?.code
       if (code === 'INSUFFICIENT_FUNDS') {
         setError('Insufficient funds for this withdrawal.')
+      } else if (code === 'CONCURRENT_MODIFICATION') {
+        setError('The account was updated by another request — please try again.')
       } else {
         setError('Withdrawal failed — please try again.')
       }
